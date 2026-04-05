@@ -3,563 +3,718 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Rolling Ball Obstacle Course</title>
+    <title>Neon Runner</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
+        * { box-sizing: border-box; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
         canvas { display: block; }
+
+        .neon-cyan  { color: #00ffff; text-shadow: 0 0 8px #00ffff, 0 0 20px #00ffff; }
+        .neon-pink  { color: #ff00ff; text-shadow: 0 0 8px #ff00ff, 0 0 20px #ff00ff; }
+        .neon-red   { color: #ff0044; text-shadow: 0 0 8px #ff0044, 0 0 20px #ff0044; }
+        .neon-green { color: #00ff88; text-shadow: 0 0 8px #00ff88, 0 0 20px #00ff88; }
+
+        .panel {
+            background: rgba(0,0,20,0.75);
+            border: 1px solid rgba(0,255,255,0.3);
+            box-shadow: 0 0 12px rgba(0,255,255,0.2), inset 0 0 12px rgba(0,255,255,0.05);
+            backdrop-filter: blur(4px);
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+
+        .neon-btn {
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            font-family: 'Courier New', monospace;
+            font-weight: 900;
+            font-size: 1.4rem;
+            padding: 14px 48px;
+            border-radius: 6px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            box-shadow: 0 0 16px rgba(0,255,255,0.5), inset 0 0 16px rgba(0,255,255,0.05);
+            transition: all 0.15s;
+        }
+        .neon-btn:hover {
+            background: rgba(0,255,255,0.08);
+            box-shadow: 0 0 30px rgba(0,255,255,0.9), inset 0 0 20px rgba(0,255,255,0.1);
+            transform: scale(1.04);
+        }
+
+        .speed-bar-track {
+            width: 120px; height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            border: 1px solid rgba(0,255,255,0.2);
+            margin-top: 4px;
+        }
+        .speed-bar-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        #ui { pointer-events: none; }
+
+        /* Scanline overlay for retro CRT feel */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.04) 2px,
+                rgba(0,0,0,0.04) 4px
+            );
+            pointer-events: none;
+            z-index: 100;
+        }
     </style>
 </head>
-<body class="bg-black">
-    <div id="ui" class="fixed top-0 left-0 w-full p-4 flex justify-between items-start z-10">
-        <div class="bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
-            <div class="text-lg font-bold">Score: <span id="score">0</span></div>
-            <div class="text-sm text-gray-300">Lives: <span id="lives">❤️❤️❤️</span></div>
-        </div>
-        <div class="bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white text-sm">
-            <div class="font-bold mb-1">Controls</div>
-            <div>↑/W - Forward</div>
-            <div>↓/S - Backward</div>
-            <div>←/A - Left</div>
-            <div>→/D - Right</div>
-            <div>Space - Jump</div>
-        </div>
-    </div>
-    
-    <div id="startScreen" class="fixed inset-0 bg-black/80 flex items-center justify-center z-20">
-        <div class="text-center text-white">
-            <h1 class="text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-500">Ball Runner</h1>
-            <p class="text-xl mb-8 text-gray-300">Roll through the obstacle course!</p>
-            <button id="startBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
-                Start Game
-            </button>
+<body>
+
+<!-- ── HUD ─────────────────────────────────────── -->
+<div id="ui" class="fixed top-0 left-0 w-full p-3 flex justify-between items-start z-10">
+
+    <!-- Score panel -->
+    <div class="panel">
+        <div class="neon-cyan text-3xl font-black tracking-widest" id="score">0</div>
+        <div style="color:rgba(0,255,255,0.4); font-size:0.65rem; letter-spacing:2px;">SCORE</div>
+        <div style="color:#ffff00; font-size:0.7rem; margin-top:4px;">
+            BEST&nbsp;<span id="highScore">0</span>
         </div>
     </div>
 
-    <div id="gameOverScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
-        <div class="text-center text-white">
-            <h1 class="text-5xl font-bold mb-4 text-red-500">Game Over</h1>
-            <p class="text-2xl mb-2">Final Score: <span id="finalScore">0</span></p>
-            <p class="text-xl mb-8 text-gray-400">Distance: <span id="distance">0</span>m</p>
-            <button id="restartBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
-                Play Again
-            </button>
+    <!-- Speed panel (center) -->
+    <div class="panel text-center">
+        <div style="color:rgba(255,255,255,0.4); font-size:0.6rem; letter-spacing:2px;">SPEED</div>
+        <div class="neon-pink text-xl font-black" id="multiplierDisplay">×1.0</div>
+        <div class="speed-bar-track" style="margin:4px auto 0;">
+            <div class="speed-bar-fill" id="speedBar"></div>
         </div>
     </div>
 
-    <div id="winScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
-        <div class="text-center text-white">
-            <h1 class="text-5xl font-bold mb-4 text-green-500">You Win!</h1>
-            <p class="text-2xl mb-2">Final Score: <span id="winScore">0</span></p>
-            <p class="text-xl mb-8 text-gray-400">🎉 Congratulations! 🎉</p>
-            <button id="playAgainBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
-                Play Again
-            </button>
+    <!-- Lives panel -->
+    <div class="panel text-right">
+        <div style="color:rgba(0,255,255,0.4); font-size:0.6rem; letter-spacing:2px;">LIVES</div>
+        <div style="font-size:1.2rem;" id="lives">❤️❤️❤️</div>
+        <div style="color:rgba(255,255,255,0.25); font-size:0.6rem; margin-top:4px; line-height:1.6">
+            SPACE/W · JUMP<br>A/D · STRAFE
         </div>
     </div>
+</div>
 
-    <script>
-        // Game variables
-        let scene, camera, renderer;
-        let ball, ballVelocity = new THREE.Vector3();
-        let platforms = [], obstacles = [], collectibles = [];
-        let score = 0, lives = 3;
-        let gameStarted = false, gameOver = false;
-        let keys = {};
-        let clock = new THREE.Clock();
-        const courseLength = 200;
-        
-        // Physics constants
-        const gravity = -30;
-        const moveForce = 50;
-        const jumpForce = 15;
-        const friction = 0.98;
-        const maxSpeed = 20;
+<!-- ── START SCREEN ─────────────────────────────── -->
+<div id="startScreen" class="fixed inset-0 flex items-center justify-center z-20" style="background:rgba(0,0,10,0.92)">
+    <div class="text-center">
+        <div style="line-height:1; margin-bottom:32px;">
+            <div class="neon-cyan"  style="font-size:5rem; font-weight:900; letter-spacing:8px;">NEON</div>
+            <div class="neon-pink"  style="font-size:5rem; font-weight:900; letter-spacing:8px;">RUNNER</div>
+        </div>
+        <div style="color:rgba(255,255,255,0.4); font-size:0.85rem; letter-spacing:2px; margin-bottom:6px;">
+            ROLL FOREVER · DON'T FALL · GET FAST
+        </div>
+        <div style="color:#ffff00; font-size:0.8rem; margin-bottom:28px;">
+            BEST&nbsp;<span id="startHighScore" style="color:#fff;">0</span>
+        </div>
+        <button class="neon-btn" id="startBtn">START</button>
+        <div style="color:rgba(255,255,255,0.2); font-size:0.7rem; margin-top:20px; line-height:2; letter-spacing:1px;">
+            SPACE / W / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; A/D / ←/→ &nbsp;·&nbsp; STRAFE
+        </div>
+    </div>
+</div>
 
-        // Initialize Three.js
-        function init() {
-            // Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a2e);
-            scene.fog = new THREE.Fog(0x1a1a2e, 50, 150);
+<!-- ── GAME OVER SCREEN ─────────────────────────── -->
+<div id="gameOverScreen" class="fixed inset-0 items-center justify-center z-20" style="display:none; background:rgba(0,0,10,0.88)">
+    <div class="text-center">
+        <div class="neon-red" style="font-size:4.5rem; font-weight:900; letter-spacing:6px; line-height:1.1; margin-bottom:24px;">
+            GAME<br>OVER
+        </div>
+        <div class="panel" style="display:inline-block; min-width:220px; margin-bottom:24px;">
+            <div class="neon-cyan text-4xl font-black" id="finalScore">0</div>
+            <div style="color:rgba(0,255,255,0.35); font-size:0.65rem; letter-spacing:2px; margin-bottom:8px;">SCORE</div>
+            <div id="newBestMsg" class="neon-green" style="font-size:0.95rem; font-weight:900; letter-spacing:2px; display:none; margin-bottom:6px;">
+                ★ NEW BEST ★
+            </div>
+            <div style="color:rgba(255,255,255,0.35); font-size:0.75rem;">
+                BEST&nbsp;<span id="finalHighScore">0</span>
+            </div>
+        </div>
+        <br>
+        <button class="neon-btn" id="restartBtn">RETRY</button>
+    </div>
+</div>
 
-            // Camera
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 8, 10);
+<!-- ── SCRIPT ───────────────────────────────────── -->
+<script>
+// =============================================================
+//  NEON RUNNER  –  Infinite procedural 3D ball runner
+// =============================================================
 
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
+// ── Globals ──────────────────────────────────────────────────
+let scene, camera, renderer, clock;
+let ball, ballVel;
+let platforms = [], obstacles = [], collectibles = [], particles = [];
+let gameStarted = false, gameOver = false;
+let score = 0, lives = 3;
+let _scoreAccum = 0, _bonusScore = 0;   // split so collectibles add cleanly
+let speedMult = 1.0, speedTimer = 0;
+let lastChunkZ = 10;   // world-Z of the most-recently-generated chunk (runner moves in -Z)
+let chunkCount = 0;
+let invTimer = 0;      // invincibility frames after hit
+let jumpConsumed = false;
+let highScore = +localStorage.getItem('neonRunnerHS') || 0;
 
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-            scene.add(ambientLight);
+// ── Physics / Tuning ─────────────────────────────────────────
+const GRAVITY       = -38;
+const JUMP_FORCE    = 19;
+const STRAFE_ACCEL  = 55;
+const STRAFE_FRIC   = 0.84;
+const MAX_STRAFE    = 14;
+const BALL_R        = 0.75;
+const BASE_SPEED    = 16;       // units / sec forward
+const MAX_SPEED_X   = 3.5;     // how much extra speed multiplier we can reach (total = 1 + 3.5 = 4.5)
+const SPEED_STEP    = 0.18;    // added every 10 s
+const GEN_AHEAD     = 130;     // generate chunks until this far ahead of ball
+const CLEANUP_BACK  = 50;      // remove chunks this far behind ball
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(20, 50, 20);
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
-            directionalLight.shadow.camera.near = 0.5;
-            directionalLight.shadow.camera.far = 200;
-            directionalLight.shadow.camera.left = -100;
-            directionalLight.shadow.camera.right = 100;
-            directionalLight.shadow.camera.top = 100;
-            directionalLight.shadow.camera.bottom = -100;
-            scene.add(directionalLight);
+// ── Neon palette ─────────────────────────────────────────────
+const EDGE_COLORS = [0x00ffff, 0xff00ff, 0x00ff88, 0xffff00, 0xff4488, 0x44aaff];
+const PLAT_COLORS = [0x004455, 0x440055, 0x003322, 0x443300, 0x220033, 0x002244];
 
-            // Add colored point lights for atmosphere
-            const pinkLight = new THREE.PointLight(0xff69b4, 1, 50);
-            pinkLight.position.set(-10, 10, -30);
-            scene.add(pinkLight);
+const keys = {};
 
-            const cyanLight = new THREE.PointLight(0x00ffff, 1, 50);
-            cyanLight.position.set(10, 10, -60);
-            scene.add(cyanLight);
+// =============================================================
+//  INIT
+// =============================================================
+function init() {
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000008);
+    scene.fog = new THREE.FogExp2(0x000008, 0.016);
 
-            // Create player ball
-            createBall();
-            
-            // Create obstacle course
-            createCourse();
+    // Camera
+    camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 400);
+    camera.position.set(0, 7, 10);
 
-            // Event listeners
-            window.addEventListener('resize', onWindowResize);
-            window.addEventListener('keydown', (e) => {
-                keys[e.code] = true;
-                if (e.code === 'Space') e.preventDefault();
-            });
-            window.addEventListener('keyup', (e) => keys[e.code] = false);
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
 
-            // UI buttons
-            document.getElementById('startBtn').addEventListener('click', startGame);
-            document.getElementById('restartBtn').addEventListener('click', restartGame);
-            document.getElementById('playAgainBtn').addEventListener('click', restartGame);
+    clock = new THREE.Clock();
 
-            // Start render loop
-            animate();
+    // ── Lighting ─────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0x0a0a22, 2.5));
+
+    const sun = new THREE.DirectionalLight(0x2233ff, 0.6);
+    sun.position.set(10, 30, 10);
+    scene.add(sun);
+
+    // Two colored point lights that track the ball
+    window._pL1 = new THREE.PointLight(0x00ffff, 3, 18);
+    window._pL2 = new THREE.PointLight(0xff00ff, 3, 18);
+    scene.add(_pL1, _pL2);
+
+    // ── Starfield ────────────────────────────────────────────
+    (function() {
+        const pos = [];
+        for (let i = 0; i < 2500; i++) {
+            pos.push((Math.random()-0.5)*500, Math.random()*150+5, (Math.random()-0.5)*600);
         }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        scene.add(new THREE.Points(geo, new THREE.PointsMaterial({color:0xffffff, size:0.25, transparent:true, opacity:0.7})));
+    })();
 
-        function createBall() {
-            const geometry = new THREE.SphereGeometry(1, 32, 32);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xff4444,
-                metalness: 0.3,
-                roughness: 0.4,
-                emissive: 0x220000
-            });
-            ball = new THREE.Mesh(geometry, material);
-            ball.castShadow = true;
-            ball.position.set(0, 2, 0);
-            scene.add(ball);
+    // ── Ball ─────────────────────────────────────────────────
+    ball = new THREE.Mesh(
+        new THREE.SphereGeometry(BALL_R, 32, 32),
+        new THREE.MeshStandardMaterial({
+            color: 0x00ffff, metalness: 0.9, roughness: 0.05,
+            emissive: 0x003344, emissiveIntensity: 0.8
+        })
+    );
+    ball.castShadow = true;
+    ball.position.set(0, 3, 0);
+    scene.add(ball);
+    ballVel = new THREE.Vector3();
+
+    // ── Generate starter course ───────────────────────────────
+    for (let i = 0; i < 22; i++) generateChunk();
+
+    // ── Events ───────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+    });
+    window.addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='Space') e.preventDefault(); });
+    window.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('restartBtn').addEventListener('click', restartGame);
+
+    refreshHighScoreUI();
+    animate();
+}
+
+// =============================================================
+//  PROCEDURAL CHUNK GENERATION
+//  Patterns cycle and get harder as chunkCount grows.
+// =============================================================
+function generateChunk() {
+    const z = lastChunkZ - 10;          // each chunk 10 units long
+    const diff = Math.min(chunkCount / 25, 1);   // 0 → 1 difficulty ramp
+    const pattern = chunkCount % 7;
+
+    // Width shrinks with difficulty
+    const wideW  = 10 - diff * 3.5;
+    const normW  = 7  - diff * 2.5;
+    const narrowW = 4 - diff * 1.0;
+
+    const col = PLAT_COLORS[chunkCount % PLAT_COLORS.length];
+
+    switch (pattern) {
+        case 0: // Wide straight — safe breathing room
+            addPlatform(0, 0, z, Math.max(wideW, 6), 10, col);
+            break;
+
+        case 1: // Normal with static spike obstacle
+            addPlatform((Math.random()-0.5)*3, 0, z, Math.max(normW, 5), 10, col);
+            if (chunkCount > 4) addObstacleSpike(0, z);
+            break;
+
+        case 2: // Two-lane gap — must jump to one side
+            addPlatform(-4, 0, z, Math.max(narrowW, 3), 10, col);
+            addPlatform( 4, 0, z, Math.max(narrowW, 3), 10, col);
+            break;
+
+        case 3: // One narrow platform + moving wall
+            addPlatform((Math.random()-0.5)*4, 0, z, Math.max(normW-1,4), 10, col);
+            if (chunkCount > 6) addObstacleMoving(0, z-3);
+            break;
+
+        case 4: // Height variation — stepped up/down
+            addPlatform(-3, 1.5, z, Math.max(narrowW,3), 10, col);
+            addPlatform( 3,-1.0, z, Math.max(narrowW,3), 10, col);
+            break;
+
+        case 5: // Collectible gauntlet — narrow with gems
+            addPlatform(0, 0, z, Math.max(narrowW,3.5), 10, col);
+            for (let i = 0; i < 4; i++) addCollectible((Math.random()-0.5)*2, 2.5, z - i*2.2);
+            break;
+
+        case 6: // Three narrow pads — pick a path
+            for (let dx of [-5, 0, 5]) addPlatform(dx, 0, z, Math.max(narrowW-0.5,2.5), 10, col);
+            if (chunkCount > 8) addObstacleSpike(0, z);
+            break;
+    }
+
+    // Random bonus collectible
+    if (Math.random() > 0.55) addCollectible((Math.random()-0.5)*5, 2.8, z-2);
+
+    lastChunkZ = z;
+    chunkCount++;
+}
+
+// ── Chunk builders ────────────────────────────────────────────
+function addPlatform(x, y, z, w, d, col) {
+    const h = 0.5;
+    const geo  = new THREE.BoxGeometry(w, h, d);
+    const mat  = new THREE.MeshStandardMaterial({
+        color: col, metalness:0.4, roughness:0.65,
+        emissive: col, emissiveIntensity: 0.12
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    // Neon edge glow strip
+    const edgeCol = EDGE_COLORS[Math.floor(Math.random() * EDGE_COLORS.length)];
+    const edgeMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w + 0.08, 0.07, d + 0.08),
+        new THREE.MeshBasicMaterial({ color: edgeCol, transparent:true, opacity:0.95 })
+    );
+    edgeMesh.position.set(x, y + h/2, z);
+    scene.add(edgeMesh);
+
+    platforms.push({ mesh, edgeMesh, w, h, d, box: new THREE.Box3() });
+}
+
+function addObstacleSpike(x, z) {
+    const offX = x + (Math.random()-0.5)*4;
+    const offZ = z + (Math.random()-0.5)*3;
+    const geo = new THREE.ConeGeometry(0.5, 2.8, 7);
+    const mat = new THREE.MeshStandardMaterial({
+        color:0xff0033, emissive:0xff0022, emissiveIntensity:0.9, metalness:0.8
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(offX, 1.9, offZ);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    obstacles.push({ mesh, box: new THREE.Box3(), type:'static' });
+}
+
+function addObstacleMoving(x, z) {
+    const geo = new THREE.BoxGeometry(2.2, 2.4, 0.55);
+    const mat = new THREE.MeshStandardMaterial({
+        color:0xff5500, emissive:0xff3300, emissiveIntensity:0.7, metalness:0.7
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 1.7, z);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    obstacles.push({
+        mesh, box: new THREE.Box3(), type:'moving',
+        startX: x - 3.8, endX: x + 3.8,
+        speed: 3.5 + Math.random()*3.5,
+        dir: 1
+    });
+}
+
+function addCollectible(x, y, z) {
+    const col = EDGE_COLORS[Math.floor(Math.random() * EDGE_COLORS.length)];
+    const geo = new THREE.OctahedronGeometry(0.45);
+    const mat = new THREE.MeshStandardMaterial({
+        color:col, emissive:col, emissiveIntensity:1.0, metalness:0.95, roughness:0.05
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    collectibles.push({ mesh, baseY: y, collected: false, col });
+}
+
+// =============================================================
+//  PARTICLE SYSTEM
+// =============================================================
+let trailTimer = 0;
+
+function burstParticles(pos, col, n=18) {
+    for (let i = 0; i < n; i++) {
+        const m = new THREE.Mesh(
+            new THREE.SphereGeometry(0.09 + Math.random()*0.09, 4, 4),
+            new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:1 })
+        );
+        m.position.copy(pos);
+        scene.add(m);
+        const spd = 4 + Math.random()*7;
+        const phi = Math.random()*Math.PI*2;
+        const theta = Math.random()*Math.PI;
+        particles.push({
+            m, life:1, maxLife:1,
+            vx: spd*Math.sin(theta)*Math.cos(phi),
+            vy: spd*Math.cos(theta) + 2,
+            vz: spd*Math.sin(theta)*Math.sin(phi)
+        });
+    }
+}
+
+function trailParticle() {
+    const m = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 4, 4),
+        new THREE.MeshBasicMaterial({ color:0x00ffff, transparent:true, opacity:0.8 })
+    );
+    m.position.copy(ball.position);
+    m.position.x += (Math.random()-0.5)*0.2;
+    m.position.y += (Math.random()-0.5)*0.2;
+    scene.add(m);
+    particles.push({ m, life:0.45, maxLife:0.45, vx:0, vy:0.5, vz: 1.5, isTrail:true });
+}
+
+function tickParticles(dt) {
+    for (let i = particles.length-1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt * (p.isTrail ? 3.5 : 1.6);
+        p.vy   -= 12 * dt;
+        p.m.position.x += p.vx * dt;
+        p.m.position.y += p.vy * dt;
+        p.m.position.z += p.vz * dt;
+        p.m.material.opacity = Math.max(0, p.life / p.maxLife);
+        if (p.isTrail) p.m.scale.setScalar(p.life / p.maxLife);
+        if (p.life <= 0) {
+            scene.remove(p.m);
+            p.m.geometry.dispose();
+            p.m.material.dispose();
+            particles.splice(i, 1);
         }
+    }
+}
 
-        function createCourse() {
-            // Starting platform
-            createPlatform(0, 0, 0, 12, 1, 12, 0x4a90d9);
+// =============================================================
+//  CLEANUP
+// =============================================================
+function cleanup() {
+    const cutoff = ball.position.z + CLEANUP_BACK;
+    for (let i = platforms.length-1; i >= 0; i--) {
+        if (platforms[i].mesh.position.z > cutoff) {
+            scene.remove(platforms[i].mesh);
+            scene.remove(platforms[i].edgeMesh);
+            platforms[i].mesh.geometry.dispose();
+            platforms[i].edgeMesh.geometry.dispose();
+            platforms.splice(i, 1);
+        }
+    }
+    for (let i = obstacles.length-1; i >= 0; i--) {
+        if (obstacles[i].mesh.position.z > cutoff) {
+            scene.remove(obstacles[i].mesh);
+            obstacles.splice(i, 1);
+        }
+    }
+    for (let i = collectibles.length-1; i >= 0; i--) {
+        if (collectibles[i].mesh.position.z > cutoff) {
+            scene.remove(collectibles[i].mesh);
+            collectibles.splice(i, 1);
+        }
+    }
+}
 
-            // Main course platforms
-            for (let i = 0; i < 20; i++) {
-                const z = -15 - i * 10;
-                const width = 8 + Math.random() * 4;
-                const x = (Math.random() - 0.5) * 8;
-                
-                if (i % 3 === 0) {
-                    // Gap section - smaller platforms
-                    createPlatform(x - 5, 0, z, 4, 1, 8, 0x6c5ce7);
-                    createPlatform(x + 5, 0, z, 4, 1, 8, 0x6c5ce7);
-                } else {
-                    createPlatform(x, 0, z, width, 1, 8, 0x4a90d9);
-                }
+// =============================================================
+//  MAIN UPDATE LOOP
+// =============================================================
+function update(dt) {
+    if (!gameStarted || gameOver) return;
 
-                // Add obstacles
-                if (i > 2 && Math.random() > 0.3) {
-                    createObstacle(x, 1.5, z);
-                }
+    // ── Speed ramp ──────────────────────────────────────────
+    speedTimer += dt;
+    if (speedTimer >= 10) {
+        speedTimer = 0;
+        speedMult = Math.min(speedMult + SPEED_STEP, 1 + MAX_SPEED_X);
+        refreshSpeedUI();
+    }
 
-                // Add moving obstacles
-                if (i > 4 && Math.random() > 0.5) {
-                    createMovingObstacle(x, 1.5, z - 2);
-                }
+    const fwdSpeed = BASE_SPEED * speedMult;
 
-                // Add collectibles
-                if (Math.random() > 0.4) {
-                    createCollectible(x + (Math.random() - 0.5) * 4, 3, z);
-                }
+    // ── Input ───────────────────────────────────────────────
+    if (keys['KeyA'] || keys['ArrowLeft'])  ballVel.x -= STRAFE_ACCEL * dt;
+    if (keys['KeyD'] || keys['ArrowRight']) ballVel.x += STRAFE_ACCEL * dt;
 
-                // Add ramps
-                if (i % 4 === 2) {
-                    createRamp(x, 0, z + 4);
-                }
+    // Jump — only once per ground contact
+    const wantJump = keys['Space'] || keys['KeyW'] || keys['ArrowUp'];
+    if (!wantJump) jumpConsumed = false;
+
+    // ── Physics ─────────────────────────────────────────────
+    ballVel.y += GRAVITY * dt;
+    ballVel.x *= STRAFE_FRIC;
+    ballVel.x  = Math.max(-MAX_STRAFE, Math.min(MAX_STRAFE, ballVel.x));
+
+    // Auto-forward: drive toward -fwdSpeed, don't brake too hard
+    const targetZ = -fwdSpeed;
+    ballVel.z += (targetZ - ballVel.z) * Math.min(dt * 4, 1);
+
+    // Move
+    ball.position.x += ballVel.x * dt;
+    ball.position.y += ballVel.y * dt;
+    ball.position.z += ballVel.z * dt;
+
+    // Spin to match movement
+    ball.rotation.x -= ballVel.z * dt * 1.5;
+    ball.rotation.z += ballVel.x * dt * 1.5;
+
+    // ── Platform collision ──────────────────────────────────
+    let onGround = false;
+    const bBox = new THREE.Box3().setFromObject(ball);
+
+    for (const p of platforms) {
+        p.box.setFromObject(p.mesh);
+        if (!bBox.intersectsBox(p.box)) continue;
+
+        const platTop = p.mesh.position.y + p.h / 2;
+
+        if (ball.position.y >= p.mesh.position.y && ballVel.y <= 0.1) {
+            // Land on top
+            ball.position.y = platTop + BALL_R;
+            ballVel.y = 0;
+            onGround = true;
+
+            if (wantJump && !jumpConsumed) {
+                ballVel.y = JUMP_FORCE;
+                jumpConsumed = true;
+                onGround = false;
+                burstParticles(ball.position.clone(), 0x00ffff, 6);
             }
+        } else {
+            // Side bounce
+            ballVel.x *= -0.25;
+        }
+    }
 
-            // Goal platform
-            createPlatform(0, 0, -210, 15, 1, 15, 0x00b894);
-            createGoalMarker(0, 2, -210);
-
-            // Add decorative elements
-            for (let i = 0; i < 50; i++) {
-                const x = (Math.random() - 0.5) * 60;
-                const z = -Math.random() * courseLength;
-                createPillar(x, z);
+    // ── Obstacle collision ──────────────────────────────────
+    if (invTimer <= 0) {
+        for (const o of obstacles) {
+            if (o.type === 'moving') {
+                o.mesh.position.x += o.dir * o.speed * dt;
+                if (o.mesh.position.x > o.endX) o.dir = -1;
+                if (o.mesh.position.x < o.startX) o.dir = 1;
+            }
+            o.box.setFromObject(o.mesh);
+            if (bBox.intersectsBox(o.box)) hitObstacle();
+        }
+    } else {
+        // Still update moving obstacles even during invincibility
+        for (const o of obstacles) {
+            if (o.type === 'moving') {
+                o.mesh.position.x += o.dir * o.speed * dt;
+                if (o.mesh.position.x > o.endX) o.dir = -1;
+                if (o.mesh.position.x < o.startX) o.dir = 1;
             }
         }
+        invTimer -= dt;
+        ball.visible = Math.sin(invTimer * 22) > 0; // flash
+    }
+    if (invTimer <= 0) ball.visible = true;
 
-        function createPlatform(x, y, z, width, height, depth, color) {
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({
-                color: color,
-                metalness: 0.2,
-                roughness: 0.8
-            });
-            const platform = new THREE.Mesh(geometry, material);
-            platform.position.set(x, y, z);
-            platform.receiveShadow = true;
-            platform.castShadow = true;
-            scene.add(platform);
-            platforms.push({
-                mesh: platform,
-                box: new THREE.Box3().setFromObject(platform)
-            });
-
-            // Add edge glow
-            const edgeGeometry = new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1);
-            const edgeMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ffff,
-                transparent: true,
-                opacity: 0.5
-            });
-            const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-            edge.position.set(x, y + height/2, z);
-            scene.add(edge);
+    // ── Collectibles ────────────────────────────────────────
+    const t = performance.now() * 0.001;
+    for (const c of collectibles) {
+        if (c.collected) continue;
+        c.mesh.rotation.y += dt * 3;
+        c.mesh.position.y  = c.baseY + Math.sin(t * 3.5 + c.mesh.position.x) * 0.28;
+        if (ball.position.distanceTo(c.mesh.position) < 1.2) {
+            c.collected = true;
+            c.mesh.visible = false;
+            _bonusScore += Math.round(60 * speedMult);
+            burstParticles(c.mesh.position.clone(), c.col, 14);
+            refreshScoreUI();
         }
+    }
 
-        function createRamp(x, y, z) {
-            const geometry = new THREE.BoxGeometry(4, 0.5, 6);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xf39c12,
-                metalness: 0.3,
-                roughness: 0.7
-            });
-            const ramp = new THREE.Mesh(geometry, material);
-            ramp.position.set(x, y + 0.5, z);
-            ramp.rotation.x = -0.3;
-            ramp.receiveShadow = true;
-            scene.add(ramp);
-            platforms.push({
-                mesh: ramp,
-                box: new THREE.Box3().setFromObject(ramp)
-            });
-        }
+    // ── Continuous score (time alive × speed) ──────────────
+    _scoreAccum += dt * speedMult * 12;   // ~12 pts/sec at ×1 speed
+    score = Math.floor(_scoreAccum) + _bonusScore;
+    refreshScoreUI();
 
-        function createObstacle(x, y, z) {
-            const geometry = new THREE.CylinderGeometry(0.5, 0.5, 3, 8);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xe74c3c,
-                metalness: 0.5,
-                roughness: 0.5,
-                emissive: 0x330000
-            });
-            const obstacle = new THREE.Mesh(geometry, material);
-            obstacle.position.set(x, y, z);
-            obstacle.castShadow = true;
-            scene.add(obstacle);
-            obstacles.push({
-                mesh: obstacle,
-                box: new THREE.Box3().setFromObject(obstacle),
-                type: 'static'
-            });
-        }
+    // ── Fall ────────────────────────────────────────────────
+    if (ball.position.y < -6) hitObstacle();
 
-        function createMovingObstacle(x, y, z) {
-            const geometry = new THREE.BoxGeometry(3, 2, 1);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xe67e22,
-                metalness: 0.4,
-                roughness: 0.6,
-                emissive: 0x331100
-            });
-            const obstacle = new THREE.Mesh(geometry, material);
-            obstacle.position.set(x, y, z);
-            obstacle.castShadow = true;
-            scene.add(obstacle);
-            obstacles.push({
-                mesh: obstacle,
-                box: new THREE.Box3().setFromObject(obstacle),
-                type: 'moving',
-                startX: x - 4,
-                endX: x + 4,
-                speed: 2 + Math.random() * 2,
-                direction: 1
-            });
-        }
+    // ── Neon lights track ball ──────────────────────────────
+    _pL1.position.set(ball.position.x - 2, ball.position.y + 3, ball.position.z);
+    _pL2.position.set(ball.position.x + 2, ball.position.y + 1, ball.position.z + 2);
 
-        function createCollectible(x, y, z) {
-            const geometry = new THREE.OctahedronGeometry(0.7);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0xf1c40f,
-                metalness: 0.6,
-                roughness: 0.3,
-                emissive: 0x553300
-            });
-            const collectible = new THREE.Mesh(geometry, material);
-            collectible.position.set(x, y, z);
-            scene.add(collectible);
-            collectibles.push({
-                mesh: collectible,
-                collected: false,
-                baseY: y
-            });
-        }
+    // ── Trail ───────────────────────────────────────────────
+    trailTimer += dt;
+    if (trailTimer > 0.035 && Math.abs(ballVel.z) > 5) { trailTimer = 0; trailParticle(); }
 
-        function createGoalMarker(x, y, z) {
-            // Flag pole
-            const poleGeometry = new THREE.CylinderGeometry(0.2, 0.2, 6, 8);
-            const poleMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const pole = new THREE.Mesh(poleGeometry, poleMaterial);
-            pole.position.set(x, y + 3, z);
-            scene.add(pole);
+    // ── Particles ───────────────────────────────────────────
+    tickParticles(dt);
 
-            // Flag
-            const flagGeometry = new THREE.BoxGeometry(3, 2, 0.1);
-            const flagMaterial = new THREE.MeshStandardMaterial({
-                color: 0x00b894,
-                emissive: 0x003322
-            });
-            const flag = new THREE.Mesh(flagGeometry, flagMaterial);
-            flag.position.set(x + 1.5, y + 5, z);
-            scene.add(flag);
+    // ── Chunk generation ────────────────────────────────────
+    if (ball.position.z - GEN_AHEAD < lastChunkZ) generateChunk();
+    cleanup();
 
-            // Glowing ring
-            const ringGeometry = new THREE.TorusGeometry(3, 0.2, 8, 32);
-            const ringMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                transparent: true,
-                opacity: 0.7
-            });
-            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-            ring.position.set(x, y + 1, z);
-            ring.rotation.x = Math.PI / 2;
-            scene.add(ring);
-        }
+    // ── Camera ──────────────────────────────────────────────
+    const camTX = ball.position.x * 0.18;
+    const camTY = ball.position.y + 6;
+    const camTZ = ball.position.z + 11;
+    camera.position.x += (camTX - camera.position.x) * 0.07;
+    camera.position.y += (camTY - camera.position.y) * 0.06;
+    camera.position.z += (camTZ - camera.position.z) * 0.10;
+    camera.lookAt(ball.position.x * 0.1, ball.position.y + 0.5, ball.position.z - 6);
+}
 
-        function createPillar(x, z) {
-            const height = 5 + Math.random() * 10;
-            const geometry = new THREE.CylinderGeometry(0.5, 0.8, height, 6);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0x2c3e50,
-                metalness: 0.3,
-                roughness: 0.8
-            });
-            const pillar = new THREE.Mesh(geometry, material);
-            pillar.position.set(x, height / 2 - 5, z);
-            pillar.castShadow = true;
-            scene.add(pillar);
-        }
+// =============================================================
+//  GAME STATE
+// =============================================================
+function hitObstacle() {
+    if (invTimer > 0) return;
+    lives--;
+    invTimer = 2.2;
+    burstParticles(ball.position.clone(), 0xff0044, 22);
+    refreshLivesUI();
+    if (lives <= 0) endGame();
+    else ballVel.set(0, 8, 0);  // pop up after hit
+}
 
-        function startGame() {
-            gameStarted = true;
-            document.getElementById('startScreen').classList.add('hidden');
-        }
+function startGame() {
+    gameStarted = true;
+    document.getElementById('startScreen').classList.add('hidden');
+}
 
-        function restartGame() {
-            // Reset game state
-            score = 0;
-            lives = 3;
-            gameOver = false;
-            gameStarted = true;
-            
-            // Reset ball position
-            ball.position.set(0, 2, 0);
-            ballVelocity.set(0, 0, 0);
-            
-            // Reset collectibles
-            collectibles.forEach(c => {
-                c.collected = false;
-                c.mesh.visible = true;
-            });
-            
-            // Hide screens
-            document.getElementById('startScreen').classList.add('hidden');
-            document.getElementById('gameOverScreen').classList.add('hidden');
-            document.getElementById('gameOverScreen').style.display = 'none';
-            document.getElementById('winScreen').classList.add('hidden');
-            document.getElementById('winScreen').style.display = 'none';
-            
-            updateUI();
-        }
+function endGame() {
+    gameOver = true;
+    const newBest = score > highScore;
+    if (newBest) { highScore = score; localStorage.setItem('neonRunnerHS', highScore); }
+    document.getElementById('finalScore').textContent    = score;
+    document.getElementById('finalHighScore').textContent = highScore;
+    document.getElementById('newBestMsg').style.display  = newBest ? 'block' : 'none';
+    document.getElementById('gameOverScreen').style.display = 'flex';
+}
 
-        function showGameOver() {
-            gameOver = true;
-            document.getElementById('finalScore').textContent = score;
-            document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
-            document.getElementById('gameOverScreen').classList.remove('hidden');
-            document.getElementById('gameOverScreen').style.display = 'flex';
-        }
+function restartGame() {
+    // Clear scene objects
+    [...platforms, ...obstacles, ...collectibles, ...particles].forEach(obj => {
+        const m = obj.mesh || obj.m;
+        scene.remove(m);
+        if (obj.edgeMesh) scene.remove(obj.edgeMesh);
+    });
+    platforms = []; obstacles = []; collectibles = []; particles = [];
 
-        function showWin() {
-            gameOver = true;
-            document.getElementById('winScore').textContent = score;
-            document.getElementById('winScreen').classList.remove('hidden');
-            document.getElementById('winScreen').style.display = 'flex';
-        }
+    // Reset state
+    score = 0; lives = 3; _scoreAccum = 0; _bonusScore = 0;
+    gameOver = false; gameStarted = true;
+    speedMult = 1.0; speedTimer = 0;
+    invTimer = 0; jumpConsumed = false;
+    chunkCount = 0; lastChunkZ = 10;
+    trailTimer = 0;
 
-        function updateUI() {
-            document.getElementById('score').textContent = score;
-            let hearts = '';
-            for (let i = 0; i < lives; i++) hearts += '❤️';
-            document.getElementById('lives').textContent = hearts || '💔';
-        }
+    ball.position.set(0, 3, 0);
+    ballVel.set(0, 0, 0);
+    ball.visible = true;
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+    for (let i = 0; i < 22; i++) generateChunk();
 
-        function update(delta) {
-            if (!gameStarted || gameOver) return;
+    document.getElementById('gameOverScreen').style.display = 'none';
+    refreshAllUI();
+}
 
-            // Apply gravity
-            ballVelocity.y += gravity * delta;
+// =============================================================
+//  UI HELPERS
+// =============================================================
+function refreshScoreUI()    { document.getElementById('score').textContent = score; }
+function refreshHighScoreUI() {
+    document.getElementById('highScore').textContent = highScore;
+    document.getElementById('startHighScore').textContent = highScore;
+}
+function refreshLivesUI() {
+    let h = '';
+    for (let i = 0; i < lives; i++) h += '❤️';
+    document.getElementById('lives').textContent = h || '💔';
+}
+function refreshSpeedUI() {
+    document.getElementById('multiplierDisplay').textContent = '×' + speedMult.toFixed(1);
+    const pct = ((speedMult - 1) / MAX_SPEED_X * 100).toFixed(1);
+    document.getElementById('speedBar').style.width = pct + '%';
+}
+function refreshAllUI() {
+    refreshScoreUI();
+    refreshHighScoreUI();
+    refreshLivesUI();
+    refreshSpeedUI();
+}
 
-            // Player input
-            const inputForce = new THREE.Vector3();
-            if (keys['KeyW'] || keys['ArrowUp']) inputForce.z -= 1;
-            if (keys['KeyS'] || keys['ArrowDown']) inputForce.z += 1;
-            if (keys['KeyA'] || keys['ArrowLeft']) inputForce.x -= 1;
-            if (keys['KeyD'] || keys['ArrowRight']) inputForce.x += 1;
-            
-            if (inputForce.length() > 0) {
-                inputForce.normalize();
-                ballVelocity.x += inputForce.x * moveForce * delta;
-                ballVelocity.z += inputForce.z * moveForce * delta;
-            }
+// =============================================================
+//  RENDER LOOP
+// =============================================================
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    update(dt);
+    renderer.render(scene, camera);
+}
 
-            // Apply friction
-            ballVelocity.x *= friction;
-            ballVelocity.z *= friction;
-
-            // Clamp horizontal speed
-            const horizontalSpeed = Math.sqrt(ballVelocity.x ** 2 + ballVelocity.z ** 2);
-            if (horizontalSpeed > maxSpeed) {
-                ballVelocity.x = (ballVelocity.x / horizontalSpeed) * maxSpeed;
-                ballVelocity.z = (ballVelocity.z / horizontalSpeed) * maxSpeed;
-            }
-
-            // Update position
-            ball.position.x += ballVelocity.x * delta;
-            ball.position.y += ballVelocity.y * delta;
-            ball.position.z += ballVelocity.z * delta;
-
-            // Ball rotation based on velocity
-            ball.rotation.x -= ballVelocity.z * delta * 2;
-            ball.rotation.z += ballVelocity.x * delta * 2;
-
-            // Platform collision
-            let onGround = false;
-            const ballBox = new THREE.Box3().setFromObject(ball);
-            
-            platforms.forEach(platform => {
-                platform.box.setFromObject(platform.mesh);
-                if (ballBox.intersectsBox(platform.box)) {
-                    // Check if ball is above platform
-                    if (ball.position.y > platform.mesh.position.y) {
-                        ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
-                        ballVelocity.y = 0;
-                        onGround = true;
-                        
-                        // Jump
-                        if (keys['Space']) {
-                            ballVelocity.y = jumpForce;
-                            onGround = false;
-                        }
-                    }
-                }
-            });
-
-            // Update moving obstacles
-            obstacles.forEach(obstacle => {
-                if (obstacle.type === 'moving') {
-                    obstacle.mesh.position.x += obstacle.direction * obstacle.speed * delta;
-                    if (obstacle.mesh.position.x > obstacle.endX) obstacle.direction = -1;
-                    if (obstacle.mesh.position.x < obstacle.startX) obstacle.direction = 1;
-                }
-                obstacle.box.setFromObject(obstacle.mesh);
-                
-                // Check collision with ball
-                if (ballBox.intersectsBox(obstacle.box)) {
-                    lives--;
-                    updateUI();
-                    if (lives <= 0) {
-                        showGameOver();
-                    } else {
-                        // Respawn slightly back
-                        ball.position.z += 10;
-                        ballVelocity.set(0, 0, 0);
-                    }
-                }
-            });
-
-            // Collectibles
-            collectibles.forEach(collectible => {
-                if (!collectible.collected) {
-                    // Rotate and bob
-                    collectible.mesh.rotation.y += delta * 2;
-                    collectible.mesh.position.y = collectible.baseY + Math.sin(Date.now() * 0.003) * 0.3;
-                    
-                    // Check collection
-                    const dist = ball.position.distanceTo(collectible.mesh.position);
-                    if (dist < 1.5) {
-                        collectible.collected = true;
-                        collectible.mesh.visible = false;
-                        score += 100;
-                        updateUI();
-                    }
-                }
-            });
-
-            // Check win condition
-            if (ball.position.z < -205) {
-                showWin();
-            }
-
-            // Fall off - respawn or game over
-            if (ball.position.y < -20) {
-                lives--;
-                updateUI();
-                if (lives <= 0) {
-                    showGameOver();
-                } else {
-                    ball.position.set(0, 2, Math.min(ball.position.z + 15, 0));
-                    ballVelocity.set(0, 0, 0);
-                }
-            }
-
-            // Update camera
-            const cameraTargetX = ball.position.x * 0.3;
-            const cameraTargetY = ball.position.y + 8;
-            const cameraTargetZ = ball.position.z + 12;
-            
-            camera.position.x += (cameraTargetX - camera.position.x) * 0.05;
-            camera.position.y += (cameraTargetY - camera.position.y) * 0.05;
-            camera.position.z += (cameraTargetZ - camera.position.z) * 0.05;
-            camera.lookAt(ball.position.x, ball.position.y + 1, ball.position.z - 5);
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = Math.min(clock.getDelta(), 0.1);
-            update(delta);
-            renderer.render(scene, camera);
-        }
-
-        // Start
-        init();
-    </script>
+init();
+</script>
 </body>
 </html>

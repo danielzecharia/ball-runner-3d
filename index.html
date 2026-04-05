@@ -157,6 +157,25 @@
         }
         .submit-glow { animation: submitGlow 0.5s ease both; }
 
+        /* Lane indicator dots */
+        .lane-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: rgba(0,255,255,0.18);
+            border: 1.5px solid rgba(0,255,255,0.35);
+            transition: all 0.15s;
+        }
+        .lane-dot.active {
+            background: #00ffff;
+            box-shadow: 0 0 10px #00ffff, 0 0 22px #00ffff;
+            transform: scale(1.3);
+        }
+        @keyframes laneSlide {
+            0%   { transform: translateX(0) scale(1); }
+            40%  { transform: translateX(var(--lane-dx)) scale(1.18, 0.85); }
+            70%  { transform: translateX(var(--lane-dx)) scale(0.9, 1.12); }
+            100% { transform: translateX(var(--lane-dx)) scale(1); }
+        }
+
         /* Scanline overlay for retro CRT feel */
         body::after {
             content: '';
@@ -237,7 +256,7 @@
 
             <button class="neon-btn" id="startBtn">START</button>
             <div style="color:rgba(255,255,255,0.2); font-size:0.65rem; margin-top:16px; line-height:2; letter-spacing:1px;">
-                SPACE / W / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; A/D / ←/→ &nbsp;·&nbsp; STRAFE
+                ←/→ &nbsp;·&nbsp; SWITCH LANE &nbsp;&nbsp; SPACE / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; SWIPE ON MOBILE
             </div>
         </div>
 
@@ -356,22 +375,19 @@
     <div id="rankPopupName" style="font-size:3rem;font-weight:900;letter-spacing:6px;"></div>
 </div>
 
-<!-- ── TOUCH CONTROLS ────────────────────────────── -->
-<div id="touchControls" style="position:fixed;bottom:0;left:0;right:0;z-index:10;
-     display:none;justify-content:space-between;align-items:flex-end;padding:16px;gap:12px;">
-    <button id="touchLeft" style="width:80px;height:80px;border-radius:50%;
-        background:rgba(0,255,255,0.08);border:2px solid rgba(0,255,255,0.35);
-        color:#00ffff;font-size:1.8rem;cursor:pointer;user-select:none;
-        box-shadow:0 0 16px rgba(0,255,255,0.2);-webkit-tap-highlight-color:transparent;">◀</button>
-    <button id="touchJump" style="flex:1;max-width:180px;height:64px;border-radius:32px;
-        background:rgba(0,255,255,0.1);border:2px solid rgba(0,255,255,0.4);
-        color:#00ffff;font-size:1rem;font-weight:900;letter-spacing:3px;cursor:pointer;
-        user-select:none;box-shadow:0 0 20px rgba(0,255,255,0.25);
-        font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent;">JUMP</button>
-    <button id="touchRight" style="width:80px;height:80px;border-radius:50%;
-        background:rgba(0,255,255,0.08);border:2px solid rgba(0,255,255,0.35);
-        color:#00ffff;font-size:1.8rem;cursor:pointer;user-select:none;
-        box-shadow:0 0 16px rgba(0,255,255,0.2);-webkit-tap-highlight-color:transparent;">▶</button>
+<!-- ── TOUCH CONTROLS (swipe hint overlay) ───────── -->
+<div id="touchControls" style="position:fixed;bottom:24px;left:0;right:0;z-index:10;
+     display:none;justify-content:center;align-items:center;gap:24px;pointer-events:none;">
+    <div style="color:rgba(0,255,255,0.3);font-size:0.7rem;letter-spacing:3px;font-family:'Courier New',monospace;">
+        ← SWIPE → &nbsp;|&nbsp; ↑ JUMP &nbsp;|&nbsp; ↓ ROLL
+    </div>
+</div>
+<!-- Lane indicator dots -->
+<div id="laneIndicator" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+     z-index:10;display:none;gap:10px;align-items:center;">
+    <div class="lane-dot" id="ldot0"></div>
+    <div class="lane-dot" id="ldot1"></div>
+    <div class="lane-dot" id="ldot2"></div>
 </div>
 
 <!-- ── SPEED FLASH + POPUP ───────────────────────── -->
@@ -718,10 +734,14 @@ function buildSkinPicker() {
 // ── Physics / Tuning ─────────────────────────────────────────
 const GRAVITY       = -38;
 const JUMP_FORCE    = 19;
-const STRAFE_ACCEL  = 120;
-const STRAFE_FRIC   = 0.78;
-const MAX_STRAFE    = 22;
-const BALL_R        = 0.75;
+// Lane system
+const LANES              = [-4, 0, 4];  // left / center / right X positions
+let   currentLane        = 1;           // 0=left 1=center 2=right
+let   targetLaneX        = 0;
+let   laneChangeCooldown = 0;
+let   _laneKeyConsumed   = false;       // prevent hold-key repeat
+const LANE_LERP          = 14;          // how fast ball slides to target lane
+const BALL_R             = 0.75;
 const BASE_SPEED    = 16;       // units / sec forward
 const MAX_SPEED_X   = 3.5;     // how much extra speed multiplier we can reach (total = 1 + 3.5 = 4.5)
 const SPEED_STEP    = 0.18;    // added every 10 s
@@ -744,8 +764,8 @@ function init() {
     scene.fog = new THREE.FogExp2(0x000008, 0.016);
 
     // Camera
-    camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.1, 400);
-    camera.position.set(0, 7, 10);
+    camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.1, 400);
+    camera.position.set(0, 5, 8);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -825,25 +845,43 @@ function init() {
         inp.style.boxShadow = '0 0 14px rgba(180,0,255,0.3)';
     });
 
-    // ── Touch controls ────────────────────────────────────────
-    const tc = document.getElementById('touchControls');
-    // Show on touch devices OR always (players can also click on desktop)
-    tc.style.display = 'flex';
+    // ── Swipe / touch controls ────────────────────────────────
+    document.getElementById('touchControls').style.display = 'flex';
+    document.getElementById('laneIndicator').style.display = 'flex';
+    updateLaneDots();
 
-    function bindBtn(id, keyCode) {
-        const btn = document.getElementById(id);
-        const on  = e => { e.preventDefault(); keys[keyCode] = true;  };
-        const off = e => { e.preventDefault(); keys[keyCode] = false; };
-        btn.addEventListener('touchstart', on,  { passive:false });
-        btn.addEventListener('touchend',   off, { passive:false });
-        btn.addEventListener('touchcancel',off, { passive:false });
-        btn.addEventListener('mousedown',  on);
-        btn.addEventListener('mouseup',    off);
-        btn.addEventListener('mouseleave', off);
-    }
-    bindBtn('touchLeft',  'KeyA');
-    bindBtn('touchRight', 'KeyD');
-    bindBtn('touchJump',  'Space');
+    let _swipeStartX = 0, _swipeStartY = 0, _swipeStartT = 0;
+    const SWIPE_THRESH = 35;
+
+    document.addEventListener('touchstart', e => {
+        if (!gameStarted || gameOver || gamePaused) return;
+        _swipeStartX = e.touches[0].clientX;
+        _swipeStartY = e.touches[0].clientY;
+        _swipeStartT = Date.now();
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+        if (!gameStarted || gameOver || gamePaused) return;
+        const dx = e.changedTouches[0].clientX - _swipeStartX;
+        const dy = e.changedTouches[0].clientY - _swipeStartY;
+        const dt2 = Date.now() - _swipeStartT;
+        if (dt2 > 500) return; // too slow
+        if (Math.abs(dx) < SWIPE_THRESH && Math.abs(dy) < SWIPE_THRESH) {
+            // Tap = jump
+            keys['Space'] = true;
+            setTimeout(() => keys['Space'] = false, 80);
+            return;
+        }
+        if (Math.abs(dx) > Math.abs(dy)) {
+            // Horizontal swipe = lane change
+            if (dx < 0) keys['ArrowLeft']  = true, setTimeout(() => keys['ArrowLeft']  = false, 80);
+            else         keys['ArrowRight'] = true, setTimeout(() => keys['ArrowRight'] = false, 80);
+        } else if (dy < -SWIPE_THRESH) {
+            // Swipe up = jump
+            keys['Space'] = true;
+            setTimeout(() => keys['Space'] = false, 80);
+        }
+    }, { passive: true });
 
     buildSkinPicker();
     renderLeaderboard();
@@ -856,60 +894,75 @@ function init() {
 //  Patterns cycle and get harder as chunkCount grows.
 // =============================================================
 function generateChunk() {
-    const z = lastChunkZ - 10;          // each chunk 10 units long
-    const diff = Math.min(chunkCount / 25, 1);   // 0 → 1 difficulty ramp
-    const pattern = chunkCount % 7;
+    const z    = lastChunkZ - 10;
+    const diff = Math.min(chunkCount / 30, 1);
+    const pattern = chunkCount % 8;
+    const col  = PLAT_COLORS[chunkCount % PLAT_COLORS.length];
 
-    // Width shrinks with difficulty
-    const wideW  = 10 - diff * 3.5;
-    const normW  = 7  - diff * 2.5;
-    const narrowW = 4 - diff * 1.0;
-
-    const col = PLAT_COLORS[chunkCount % PLAT_COLORS.length];
+    // Full 3-lane road width (always the same road, obstacles in lanes)
+    const roadW = 14;  // covers all 3 lanes comfortably
 
     switch (pattern) {
-        case 0: // Wide straight — safe breathing room
-            addPlatform(0, 0, z, Math.max(wideW, 6), 10, col);
+        case 0: // Clear road — breathing room
+            addPlatform(0, 0, z, roadW, 10, col);
+            // Coin line down center lane
+            for (let i = 0; i < 5; i++) addCollectible(LANES[1], 2.2, z - i*1.8);
             break;
 
-        case 1: // Normal with static spike obstacle
-            addPlatform((Math.random()-0.5)*3, 0, z, Math.max(normW, 5), 10, col);
-            if (chunkCount > 4) addObstacleSpike(0, z);
+        case 1: // One lane blocked — dodge left or right
+            addPlatform(0, 0, z, roadW, 10, col);
+            if (chunkCount > 3) {
+                const blocked = Math.floor(Math.random()*3);
+                addObstacleSpike(LANES[blocked], z);
+                // Coins in safe lanes
+                const safe = [0,1,2].filter(l=>l!==blocked);
+                for (let i = 0; i < 3; i++) addCollectible(LANES[safe[i%safe.length]], 2.2, z - i*2.2);
+            }
             break;
 
-        case 2: // Two-lane gap — must jump to one side
-            addPlatform(-4, 0, z, Math.max(narrowW, 3), 10, col);
-            addPlatform( 4, 0, z, Math.max(narrowW, 3), 10, col);
+        case 2: // Two lanes blocked — only one safe
+            addPlatform(0, 0, z, roadW, 10, col);
+            if (chunkCount > 6) {
+                const safe = Math.floor(Math.random()*3);
+                [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
+                for (let i = 0; i < 4; i++) addCollectible(LANES[safe], 2.2, z - i*1.8);
+            }
             break;
 
-        case 3: // One narrow platform + moving wall
-            addPlatform((Math.random()-0.5)*4, 0, z, Math.max(normW-1,4), 10, col);
-            if (chunkCount > 6) addObstacleMoving(0, z-3);
+        case 3: // Moving wall — weave timing
+            addPlatform(0, 0, z, roadW, 10, col);
+            if (chunkCount > 5) addObstacleMoving(0, z-3);
             break;
 
-        case 4: // Height variation — stepped up/down
-            addPlatform(-3, 1.5, z, Math.max(narrowW,3), 10, col);
-            addPlatform( 3,-1.0, z, Math.max(narrowW,3), 10, col);
+        case 4: // Coin zigzag across lanes
+            addPlatform(0, 0, z, roadW, 10, col);
+            [0,1,2,1,0,1,2].forEach((lane, i) => addCollectible(LANES[lane], 2.2, z - i*1.6));
             break;
 
-        case 5: // Collectible gauntlet — narrow with gems
-            addPlatform(0, 0, z, Math.max(narrowW,3.5), 10, col);
-            for (let i = 0; i < 4; i++) addCollectible((Math.random()-0.5)*2, 2.5, z - i*2.2);
+        case 5: // Gap in road — jump required, coin reward on far side
+            addPlatform(0, 0, z,       roadW, 4, col);   // near section
+            addPlatform(0, 0, z - 6.5, roadW, 4, col);   // far section (gap=2.5u)
+            for (let i = 0; i < 3; i++) addCollectible(LANES[1], 3.8, z - 3 - i*0.7); // coins in gap arc
             break;
 
-        case 6: // Three narrow pads — pick a path
-            for (let dx of [-5, 0, 5]) addPlatform(dx, 0, z, Math.max(narrowW-0.5,2.5), 10, col);
-            if (chunkCount > 8) addObstacleSpike(0, z);
+        case 6: // Two obstacles spread — pick middle or side
+            addPlatform(0, 0, z, roadW, 10, col);
+            if (chunkCount > 8) {
+                addObstacleSpike(LANES[0], z);
+                addObstacleSpike(LANES[2], z);
+                for (let i = 0; i < 4; i++) addCollectible(LANES[1], 2.2, z - i*1.8);
+            }
+            break;
+
+        case 7: // Speed section — wide open + boost pad
+            addPlatform(0, 0, z, roadW, 10, col);
+            if (chunkCount > 4) addBoostPad(LANES[1], 0, z-3);
+            [0,1,2].forEach(l => { for (let i=0;i<3;i++) addCollectible(LANES[l],2.2,z-i*2.5); });
             break;
     }
 
-    // Random bonus collectible
-    if (Math.random() > 0.55) addCollectible((Math.random()-0.5)*5, 2.8, z-2);
-
-    // Power-up (rare, ~12% chance, not in first 5 chunks)
-    if (chunkCount > 5 && Math.random() > 0.88) addPowerUp((Math.random()-0.5)*4, 3.2, z-3);
-    // Boost pad (~15% chance after chunk 3)
-    if (chunkCount > 3 && Math.random() > 0.85) addBoostPad((Math.random()-0.5)*3, 0, z-4);
+    // Rare power-up
+    if (chunkCount > 5 && Math.random() > 0.85) addPowerUp(LANES[Math.floor(Math.random()*3)], 3.2, z-2);
 
     lastChunkZ = z;
     chunkCount++;
@@ -937,12 +990,20 @@ function addPlatform(x, y, z, w, d, col) {
     edgeMesh.position.set(x, y + h/2, z);
     scene.add(edgeMesh);
 
+    // Lane divider lines (dashed strips between lanes)
+    const divMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.08 });
+    [-2, 2].forEach(lx => {
+        const div = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, d), divMat);
+        div.position.set(x + lx, y + h/2 + 0.01, z);
+        scene.add(div);
+    });
+
     platforms.push({ mesh, edgeMesh, w, h, d, box: new THREE.Box3() });
 }
 
 function addObstacleSpike(x, z) {
-    const offX = x + (Math.random()-0.5)*4;
-    const offZ = z + (Math.random()-0.5)*3;
+    const offX = x;  // lane-aligned, no random offset
+    const offZ = z + (Math.random()-0.5)*1.5;
     const geo = new THREE.ConeGeometry(0.5, 2.8, 7);
     const mat = new THREE.MeshStandardMaterial({
         color:0xff0033, emissive:0xff0022, emissiveIntensity:0.9, metalness:0.8
@@ -1025,6 +1086,13 @@ function addBoostPad(x, y, z) {
     arrow.position.set(x, y + 0.45, z - 0.3);
     scene.add(arrow);
     boostPads.push({ mesh, arrow, used:false });
+}
+
+function updateLaneDots() {
+    for (let i = 0; i < 3; i++) {
+        const dot = document.getElementById('ldot' + i);
+        if (dot) dot.classList.toggle('active', i === currentLane);
+    }
 }
 
 function applySkin() {
@@ -1155,24 +1223,49 @@ function update(dt) {
 
     const fwdSpeed = BASE_SPEED * speedMult * (activePowerUp === 'SLOWMO' ? 0.45 : 1);
 
-    // ── Input ───────────────────────────────────────────────
-    if (keys['KeyA'] || keys['ArrowLeft'])  ballVel.x -= STRAFE_ACCEL * dt;
-    if (keys['KeyD'] || keys['ArrowRight']) ballVel.x += STRAFE_ACCEL * dt;
+    // ── Lane input ──────────────────────────────────────────
+    const wantLeft  = keys['KeyA'] || keys['ArrowLeft'];
+    const wantRight = keys['KeyD'] || keys['ArrowRight'];
+    const wantJump  = keys['Space'] || keys['KeyW'] || keys['ArrowUp'];
 
-    const wantJump = keys['Space'] || keys['KeyW'] || keys['ArrowUp'];
-    if (!wantJump) jumpConsumed = false;   // key released → ready for next press
+    if (!wantLeft && !wantRight) _laneKeyConsumed = false;
+
+    if (laneChangeCooldown > 0) laneChangeCooldown -= dt;
+
+    if (!_laneKeyConsumed && laneChangeCooldown <= 0) {
+        if (wantLeft && currentLane > 0) {
+            currentLane--;
+            targetLaneX = LANES[currentLane];
+            laneChangeCooldown = 0.18;
+            _laneKeyConsumed = true;
+            ball.scale.set(0.75, 1.2, 0.75);
+            burstParticles(ball.position.clone(), SKINS[selectedSkin].trail, 5);
+            sfx.jump && _tone(300, 'sine', 0.07, 0.08);
+            updateLaneDots();
+        } else if (wantRight && currentLane < 2) {
+            currentLane++;
+            targetLaneX = LANES[currentLane];
+            laneChangeCooldown = 0.18;
+            _laneKeyConsumed = true;
+            ball.scale.set(0.75, 1.2, 0.75);
+            burstParticles(ball.position.clone(), SKINS[selectedSkin].trail, 5);
+            _tone(320, 'sine', 0.07, 0.08);
+            updateLaneDots();
+        }
+    }
+    if (!wantJump) jumpConsumed = false;
 
     // ── Physics ─────────────────────────────────────────────
     ballVel.y += GRAVITY * dt;
-    ballVel.x *= STRAFE_FRIC;
-    ballVel.x  = Math.max(-MAX_STRAFE, Math.min(MAX_STRAFE, ballVel.x));
+    // Snap X toward target lane
+    ball.position.x += (targetLaneX - ball.position.x) * Math.min(LANE_LERP * dt, 1);
+    ballVel.x = 0; // no free strafe
 
     // Auto-forward: drive toward -fwdSpeed, don't brake too hard
     const targetZ = -fwdSpeed;
     ballVel.z += (targetZ - ballVel.z) * Math.min(dt * 4, 1);
 
-    // Move
-    ball.position.x += ballVel.x * dt;
+    // Move (X handled by lane lerp above)
     ball.position.y += ballVel.y * dt;
     ball.position.z += ballVel.z * dt;
 
@@ -1198,8 +1291,8 @@ function update(dt) {
             onGround = true;
             jumpsUsed = 0;   // reset double-jump on landing
         } else {
-            // Side bounce
-            ballVel.x *= -0.25;
+            // Side of platform — push back to lane center
+            ball.position.x = targetLaneX;
         }
     }
 
@@ -1366,13 +1459,13 @@ function update(dt) {
     if (ball.position.z - GEN_AHEAD < lastChunkZ) generateChunk();
     cleanup();
 
-    // ── Camera ──────────────────────────────────────────────
-    const camTX = ball.position.x * 0.18;
-    const camTY = ball.position.y + 6;
-    const camTZ = ball.position.z + 11;
-    camera.position.x += (camTX - camera.position.x) * 0.07;
-    camera.position.y += (camTY - camera.position.y) * 0.06;
-    camera.position.z += (camTZ - camera.position.z) * 0.10;
+    // ── Camera (Subway-style: low behind, slight X follow) ──
+    const camTargX = ball.position.x * 0.25;  // camera leans toward active lane
+    const camTargY = ball.position.y + 4.5;
+    const camTargZ = ball.position.z + 8;
+    camera.position.x += (camTargX - camera.position.x) * 0.10;
+    camera.position.y += (camTargY - camera.position.y) * 0.07;
+    camera.position.z += (camTargZ - camera.position.z) * 0.12;
 
     // Camera shake
     if (shakeTimer > 0) {
@@ -1382,7 +1475,7 @@ function update(dt) {
         camera.position.y += (Math.random() - 0.5) * mag;
     }
 
-    camera.lookAt(ball.position.x * 0.1, ball.position.y + 0.5, ball.position.z - 6);
+    camera.lookAt(ball.position.x * 0.15, ball.position.y + 0.8, ball.position.z - 8);
 }
 
 // =============================================================
@@ -1618,6 +1711,8 @@ function shareScore() {
 
 function startGame() {
     gameStarted = true;
+    currentLane = 1; targetLaneX = LANES[1]; laneChangeCooldown = 0; _laneKeyConsumed = false;
+    updateLaneDots();
     applySkin();
     document.getElementById('startScreen').classList.add('hidden');
     startMusic();
@@ -1702,6 +1797,8 @@ function restartGame() {
     powerUps = []; activePowerUp = null; powerUpTimer = 0; shieldActive = false;
     boostPads = []; gamePaused = false;
     ball.scale.set(1, 1, 1);
+    currentLane = 1; targetLaneX = LANES[1]; laneChangeCooldown = 0; _laneKeyConsumed = false;
+    updateLaneDots();
     document.getElementById('pauseScreen').style.display = 'none';
     document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
     document.getElementById('powerUpHUD').style.display = 'none';

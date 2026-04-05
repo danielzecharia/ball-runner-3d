@@ -2,71 +2,204 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Neon Runner</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        * { box-sizing: border-box; }
-        body {
-            margin: 0; overflow: hidden;
+        /* ── Reset & base ───────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
             background: radial-gradient(ellipse at 50% 100%, #1a004d 0%, #08001a 45%, #00000f 100%);
             font-family: 'Courier New', monospace;
+            touch-action: none;         /* prevent browser scroll/zoom on touch */
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
         }
-        canvas { display: block; }
+        canvas { display: block; position: fixed; inset: 0; width: 100% !important; height: 100% !important; }
 
+        /* ── Neon text helpers ──────────────────── */
         .neon-cyan  { color: #00ffff; text-shadow: 0 0 8px #00ffff, 0 0 20px #00ffff; }
         .neon-pink  { color: #ff00ff; text-shadow: 0 0 8px #ff00ff, 0 0 20px #ff00ff; }
         .neon-red   { color: #ff0044; text-shadow: 0 0 8px #ff0044, 0 0 20px #ff0044; }
         .neon-green { color: #00ff88; text-shadow: 0 0 8px #00ff88, 0 0 20px #00ff88; }
 
+        /* ── Panel ──────────────────────────────── */
         .panel {
-            background: rgba(0,0,20,0.75);
+            background: rgba(0,0,20,0.80);
             border: 1px solid rgba(0,255,255,0.3);
             box-shadow: 0 0 12px rgba(0,255,255,0.2), inset 0 0 12px rgba(0,255,255,0.05);
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             border-radius: 8px;
-            padding: 10px 14px;
+            padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 14px);
         }
 
-        .neon-btn {
-            background: transparent;
-            border: 2px solid #00ffff;
-            color: #00ffff;
-            font-family: 'Courier New', monospace;
-            font-weight: 900;
-            font-size: 1.4rem;
-            padding: 14px 48px;
-            border-radius: 6px;
-            cursor: pointer;
-            letter-spacing: 3px;
-            box-shadow: 0 0 16px rgba(0,255,255,0.5), inset 0 0 16px rgba(0,255,255,0.05);
-            transition: all 0.15s;
+        /* ── HUD ────────────────────────────────── */
+        #ui {
+            pointer-events: none;
+            position: fixed; top: 0; left: 0; width: 100%;
+            padding: clamp(6px, 2vw, 12px);
+            display: flex; justify-content: space-between; align-items: flex-start;
+            z-index: 10; gap: clamp(4px, 1vw, 8px);
         }
-        .neon-btn:hover {
+        #ui .panel { flex-shrink: 0; }
+        #score      { font-size: clamp(1.2rem, 4vw, 2rem); font-weight: 900; letter-spacing: 2px; }
+        #multiplierDisplay { font-size: clamp(1rem, 3vw, 1.4rem); font-weight: 900; }
+        #lives      { font-size: clamp(0.9rem, 2.5vw, 1.2rem); }
+        .hud-label  { color: rgba(0,255,255,0.4); font-size: clamp(0.5rem, 1.2vw, 0.65rem); letter-spacing: 2px; }
+        .hud-sub    { font-size: clamp(0.5rem, 1.2vw, 0.65rem); font-weight: 900; letter-spacing: 2px; margin-top: 2px; }
+        #pauseBtn {
+            pointer-events: all; margin-top: 4px; background: transparent;
+            border: 1px solid rgba(0,255,255,0.35); color: #00ffff; border-radius: 4px;
+            font-family: 'Courier New',monospace; font-size: clamp(0.5rem, 1.2vw, 0.6rem);
+            letter-spacing: 2px; padding: 3px 8px; cursor: pointer; width: 100%;
+            touch-action: manipulation;
+        }
+        .speed-bar-track {
+            width: clamp(70px, 12vw, 120px); height: 6px;
+            background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;
+            border: 1px solid rgba(0,255,255,0.2); margin-top: 4px;
+        }
+        .speed-bar-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff);
+            border-radius: 3px; transition: width 0.5s ease;
+        }
+        /* Hide speed panel on very small screens to save space */
+        @media (max-width: 380px) { #speedPanel { display: none !important; } }
+
+        /* ── Neon button (base) ─────────────────── */
+        .neon-btn {
+            background: transparent; border: 2px solid #00ffff; color: #00ffff;
+            font-family: 'Courier New', monospace; font-weight: 900;
+            font-size: clamp(0.9rem, 3vw, 1.4rem);
+            padding: clamp(10px,2.5vh,14px) clamp(20px,5vw,48px);
+            border-radius: 6px; cursor: pointer;
+            letter-spacing: clamp(1px, 0.5vw, 3px);
+            box-shadow: 0 0 16px rgba(0,255,255,0.5), inset 0 0 16px rgba(0,255,255,0.05);
+            transition: all 0.15s; touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .neon-btn:hover, .neon-btn:active {
             background: rgba(0,255,255,0.08);
             box-shadow: 0 0 30px rgba(0,255,255,0.9), inset 0 0 20px rgba(0,255,255,0.1);
             transform: scale(1.04);
         }
 
-        .speed-bar-track {
-            width: 120px; height: 6px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 3px;
-            overflow: hidden;
-            border: 1px solid rgba(0,255,255,0.2);
-            margin-top: 4px;
+        /* ── Button variants ────────────────────── */
+        .neon-btn-primary {
+            background: rgba(0,255,255,0.12); border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0,255,255,0.6), inset 0 0 20px rgba(0,255,255,0.08);
         }
-        .speed-bar-fill {
-            height: 100%; width: 0%;
-            background: linear-gradient(90deg, #00ffff, #ff00ff);
-            border-radius: 3px;
-            transition: width 0.5s ease;
+        .neon-btn-primary:hover, .neon-btn-primary:active {
+            background: rgba(0,255,255,0.22);
+            box-shadow: 0 0 40px rgba(0,255,255,1), inset 0 0 30px rgba(0,255,255,0.15);
+        }
+        .neon-btn-ghost {
+            border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.5);
+            box-shadow: none; font-size: clamp(0.8rem,2.5vw,1rem); padding: 10px 28px;
+        }
+        .neon-btn-ghost:hover, .neon-btn-ghost:active {
+            border-color: rgba(255,255,255,0.6); color: #fff;
+            box-shadow: 0 0 16px rgba(255,255,255,0.2);
+        }
+        .neon-btn-share {
+            border-color: #00ff88; color: #00ff88;
+            box-shadow: 0 0 12px rgba(0,255,136,0.3);
+            font-size: clamp(0.7rem,2vw,0.85rem); padding: 10px 20px; letter-spacing: 2px;
+        }
+        .neon-btn-share:hover, .neon-btn-share:active {
+            box-shadow: 0 0 28px rgba(0,255,136,0.8); background: rgba(0,255,136,0.08);
+        }
+        .neon-btn-magenta {
+            background: rgba(180,0,255,0.1); border-color: #cc44ff; color: #cc44ff;
+            box-shadow: 0 0 16px rgba(180,0,255,0.45), inset 0 0 14px rgba(180,0,255,0.07);
+        }
+        .neon-btn-magenta:hover, .neon-btn-magenta:active {
+            background: rgba(180,0,255,0.2);
+            box-shadow: 0 0 36px rgba(180,0,255,0.9), inset 0 0 22px rgba(180,0,255,0.12);
+            transform: scale(1.05);
         }
 
-        #ui { pointer-events: none; }
+        /* ── Start screen ───────────────────────── */
+        #startScreen {
+            position: fixed; inset: 0; display: flex; align-items: center;
+            justify-content: center; z-index: 20; background: rgba(0,0,10,0.92);
+            overflow-y: auto; padding: clamp(16px,4vw,32px);
+        }
+        #startScreen.hidden { display: none !important; }
+        .start-inner {
+            display: flex; gap: clamp(20px,4vw,48px); align-items: flex-start;
+            justify-content: center; flex-wrap: wrap; width: 100%; max-width: 900px;
+        }
+        .start-left  { flex: 1 1 280px; text-align: center; min-width: 0; }
+        .start-right { flex: 0 1 220px; min-width: 180px; }
+        .title-neon  { font-size: clamp(2.5rem, 8vw, 4.5rem); font-weight: 900; letter-spacing: clamp(4px,1vw,8px); line-height: 1; }
 
-        /* Speed lines at high velocity */
+        /* ── Game Over screen ───────────────────── */
+        #gameOverScreen {
+            position: fixed; inset: 0; z-index: 20;
+            background: rgba(0,0,8,0.92); overflow-y: auto;
+            animation: goFadeIn 0.4s ease both;
+        }
+        .go-inner {
+            position: relative; z-index: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            min-height: 100%; padding: clamp(16px,4vw,28px); text-align: center;
+            gap: 0;
+        }
+        #finalScore { font-size: clamp(3rem, 12vw, 5.5rem); }
+        #goRankBadge { font-size: clamp(1rem, 4vw, 1.5rem); }
+        .go-game-over-title { font-size: clamp(2rem, 8vw, 4rem); }
+
+        /* ── Nickname box ───────────────────────── */
+        .go-nick-box {
+            background: rgba(140,0,255,0.06); border: 1px solid rgba(180,0,255,0.3);
+            border-radius: 10px; padding: clamp(12px,3vw,18px) clamp(16px,4vw,24px);
+            box-shadow: 0 0 20px rgba(140,0,255,0.12);
+            width: 100%; max-width: 380px;
+        }
+
+        /* ── Lane indicator ─────────────────────── */
+        .lane-dot {
+            width: clamp(8px,2vw,10px); height: clamp(8px,2vw,10px); border-radius: 50%;
+            background: rgba(0,255,255,0.18); border: 1.5px solid rgba(0,255,255,0.35);
+            transition: all 0.15s;
+        }
+        .lane-dot.active {
+            background: #00ffff; box-shadow: 0 0 10px #00ffff, 0 0 22px #00ffff;
+            transform: scale(1.3);
+        }
+
+        /* ── Swipe hint (mobile) ─────────────────── */
+        #swipeHint {
+            position: fixed; bottom: clamp(60px,12vh,90px); left: 50%;
+            transform: translateX(-50%);
+            z-index: 10; pointer-events: none; display: none;
+            flex-direction: column; align-items: center; gap: 6px;
+        }
+        .swipe-arrows {
+            display: flex; gap: 20px; align-items: center;
+        }
+        .swipe-arrow {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(0,255,255,0.06);
+            border: 1.5px solid rgba(0,255,255,0.25);
+            display: flex; align-items: center; justify-content: center;
+            color: rgba(0,255,255,0.5); font-size: 1.2rem;
+        }
+        .swipe-label {
+            color: rgba(0,255,255,0.3); font-size: 0.6rem; letter-spacing: 2px;
+        }
+
+        /* ── Speed lines ────────────────────────── */
         @keyframes speedLine {
             0%   { background-position: 0 0; }
             100% { background-position: -300px 0; }
@@ -84,7 +217,7 @@
             animation: speedLine 0.18s linear infinite;
         }
 
-        /* ── Game Over animations ─────────────────── */
+        /* ── Animations ─────────────────────────── */
         @keyframes goFadeIn    { from { opacity:0 } to { opacity:1 } }
         @keyframes goSlideDown { from { opacity:0; transform:translateY(-40px) } to { opacity:1; transform:translateY(0) } }
         @keyframes goSlideUp   { from { opacity:0; transform:translateY(40px)  } to { opacity:1; transform:translateY(0) } }
@@ -93,6 +226,8 @@
         @keyframes divGlow     { 0%,100%{opacity:0.3} 50%{opacity:1} }
         @keyframes btnBounce   { 0%{transform:scale(1)} 30%{transform:scale(0.9)} 70%{transform:scale(1.1)} 100%{transform:scale(1)} }
         @keyframes savedPop    { 0%{opacity:0;transform:scale(0.5)} 60%{transform:scale(1.2)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes submitGlow  { 0%,100%{box-shadow:0 0 16px rgba(180,0,255,0.45)} 50%{box-shadow:0 0 40px rgba(180,0,255,1),0 0 80px rgba(180,0,255,0.5)} }
+        @keyframes laneSlide   { 0%{transform:translateX(0) scale(1)} 40%{transform:translateX(var(--lane-dx)) scale(1.18,.85)} 70%{transform:translateX(var(--lane-dx)) scale(.9,1.12)} 100%{transform:translateX(var(--lane-dx)) scale(1)} }
 
         .go-title    { animation: goSlideDown 0.5s ease both; }
         .go-score    { animation: scalePop    0.6s ease 0.2s both; }
@@ -101,173 +236,90 @@
         .new-best-badge { animation: newBestPulse 1.2s ease infinite; }
         .go-divider  { animation: divGlow 2s ease infinite; }
         .btn-bounce  { animation: btnBounce 0.35s ease forwards; }
-
-        /* Primary (Play Again) button */
-        .neon-btn-primary {
-            background: rgba(0,255,255,0.12);
-            border-color: #00ffff;
-            box-shadow: 0 0 20px rgba(0,255,255,0.6), inset 0 0 20px rgba(0,255,255,0.08);
-        }
-        .neon-btn-primary:hover {
-            background: rgba(0,255,255,0.22);
-            box-shadow: 0 0 40px rgba(0,255,255,1), inset 0 0 30px rgba(0,255,255,0.15);
-        }
-        /* Secondary button */
-        .neon-btn-ghost {
-            border-color: rgba(255,255,255,0.25);
-            color: rgba(255,255,255,0.5);
-            box-shadow: none;
-            font-size: 1rem;
-            padding: 10px 28px;
-        }
-        .neon-btn-ghost:hover {
-            border-color: rgba(255,255,255,0.6);
-            color: #fff;
-            box-shadow: 0 0 16px rgba(255,255,255,0.2);
-        }
-        /* Share buttons */
-        .neon-btn-share {
-            border-color: #00ff88; color: #00ff88;
-            box-shadow: 0 0 12px rgba(0,255,136,0.3);
-            font-size: 0.85rem; padding: 10px 20px; letter-spacing: 2px;
-        }
-        .neon-btn-share:hover {
-            box-shadow: 0 0 28px rgba(0,255,136,0.8);
-            background: rgba(0,255,136,0.08);
-        }
-        /* Magenta/purple accent — SUBMIT SCORE */
-        .neon-btn-magenta {
-            background: rgba(180,0,255,0.1);
-            border-color: #cc44ff;
-            color: #cc44ff;
-            box-shadow: 0 0 16px rgba(180,0,255,0.45), inset 0 0 14px rgba(180,0,255,0.07);
-        }
-        .neon-btn-magenta:hover {
-            background: rgba(180,0,255,0.2);
-            box-shadow: 0 0 36px rgba(180,0,255,0.9), inset 0 0 22px rgba(180,0,255,0.12);
-            transform: scale(1.05);
-        }
-        /* Nickname section container */
-        .go-nick-box {
-            background: rgba(140,0,255,0.06);
-            border: 1px solid rgba(180,0,255,0.3);
-            border-radius: 10px;
-            padding: 18px 24px;
-            box-shadow: 0 0 20px rgba(140,0,255,0.12);
-        }
-        @keyframes submitGlow {
-            0%,100% { box-shadow: 0 0 16px rgba(180,0,255,0.45); }
-            50%      { box-shadow: 0 0 40px rgba(180,0,255,1), 0 0 80px rgba(180,0,255,0.5); }
-        }
         .submit-glow { animation: submitGlow 0.5s ease both; }
 
-        /* Lane indicator dots */
-        .lane-dot {
-            width: 10px; height: 10px; border-radius: 50%;
-            background: rgba(0,255,255,0.18);
-            border: 1.5px solid rgba(0,255,255,0.35);
-            transition: all 0.15s;
-        }
-        .lane-dot.active {
-            background: #00ffff;
-            box-shadow: 0 0 10px #00ffff, 0 0 22px #00ffff;
-            transform: scale(1.3);
-        }
-        @keyframes laneSlide {
-            0%   { transform: translateX(0) scale(1); }
-            40%  { transform: translateX(var(--lane-dx)) scale(1.18, 0.85); }
-            70%  { transform: translateX(var(--lane-dx)) scale(0.9, 1.12); }
-            100% { transform: translateX(var(--lane-dx)) scale(1); }
+        /* ── Scanlines ──────────────────────────── */
+        body::after {
+            content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+            background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);
         }
 
-        /* Scanline overlay for retro CRT feel */
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0,0,0,0.04) 2px,
-                rgba(0,0,0,0.04) 4px
-            );
-            pointer-events: none;
-            z-index: 100;
+        /* ── Portrait phone: compact HUD ─────────── */
+        @media (max-width: 480px) {
+            .panel { padding: 5px 8px; }
+            #rankBadge { display: none; }  /* hide rank in HUD, shown in score panel label */
+        }
+
+        /* ── Landscape phone: tighter vertical space */
+        @media (max-height: 450px) {
+            #ui { padding: 4px 8px; }
+            .panel { padding: 3px 8px; }
         }
     </style>
 </head>
 <body>
 
 <!-- ── HUD ─────────────────────────────────────── -->
-<div id="ui" class="fixed top-0 left-0 w-full p-3 flex justify-between items-start z-10">
-
+<div id="ui">
     <!-- Score panel -->
     <div class="panel">
-        <div class="neon-cyan text-3xl font-black tracking-widest" id="score">0</div>
-        <div style="color:rgba(0,255,255,0.4); font-size:0.65rem; letter-spacing:2px;">SCORE</div>
-        <div id="rankBadge" style="font-size:0.65rem; font-weight:900; letter-spacing:2px; margin-top:3px; color:#aaaaaa;">ROOKIE</div>
+        <div class="neon-cyan" id="score" style="font-weight:900;letter-spacing:2px;">0</div>
+        <div class="hud-label">SCORE</div>
+        <div id="rankBadge" class="hud-sub" style="color:#aaaaaa;">ROOKIE</div>
     </div>
 
-    <!-- Speed panel (center) -->
-    <div class="panel text-center">
-        <div style="color:rgba(255,255,255,0.4); font-size:0.6rem; letter-spacing:2px;">SPEED</div>
-        <div class="neon-pink text-xl font-black" id="multiplierDisplay">×1.0</div>
+    <!-- Speed panel (center, hidden on tiny screens) -->
+    <div class="panel text-center" id="speedPanel">
+        <div class="hud-label" style="color:rgba(255,255,255,0.4);">SPEED</div>
+        <div class="neon-pink" id="multiplierDisplay" style="font-weight:900;">×1.0</div>
         <div class="speed-bar-track" style="margin:4px auto 0;">
             <div class="speed-bar-fill" id="speedBar"></div>
         </div>
     </div>
 
     <!-- Lives + pause panel -->
-    <div class="panel text-right">
-        <div style="color:rgba(0,255,255,0.4); font-size:0.6rem; letter-spacing:2px;">LIVES</div>
-        <div style="font-size:1.2rem;" id="lives">❤️❤️❤️</div>
-        <div style="color:#ffff00; font-size:0.65rem; margin-top:4px;">
+    <div class="panel" style="text-align:right;">
+        <div class="hud-label">LIVES</div>
+        <div id="lives" style="font-size:clamp(0.9rem,2.5vw,1.2rem);">❤️❤️❤️</div>
+        <div style="color:#ffff00;font-size:clamp(0.5rem,1.2vw,0.65rem);margin-top:4px;">
             BEST&nbsp;<span id="highScore">0</span>
         </div>
-        <button id="pauseBtn" onclick="if(gameStarted && !gameOver) togglePause()"
-            style="pointer-events:all; margin-top:6px; background:transparent;
-                   border:1px solid rgba(0,255,255,0.35); color:#00ffff; border-radius:4px;
-                   font-family:'Courier New',monospace; font-size:0.6rem; letter-spacing:2px;
-                   padding:3px 8px; cursor:pointer; width:100%;">
-            ⏸ PAUSE
-        </button>
+        <button id="pauseBtn" onclick="if(gameStarted && !gameOver) togglePause()">⏸ PAUSE</button>
     </div>
 </div>
 
 <!-- ── START SCREEN ─────────────────────────────── -->
-<div id="startScreen" class="fixed inset-0 flex items-center justify-center z-20" style="background:rgba(0,0,10,0.92)">
-    <div style="display:flex; gap:48px; align-items:flex-start; justify-content:center; flex-wrap:wrap;">
-
+<div id="startScreen">
+    <div class="start-inner">
         <!-- Left: title + start -->
-        <div class="text-center">
-            <div style="line-height:1; margin-bottom:24px;">
-                <div class="neon-cyan"  style="font-size:4.5rem; font-weight:900; letter-spacing:8px;">NEON</div>
-                <div class="neon-pink"  style="font-size:4.5rem; font-weight:900; letter-spacing:8px;">RUNNER</div>
+        <div class="start-left">
+            <div style="line-height:1; margin-bottom:clamp(14px,3vw,24px);">
+                <div class="neon-cyan title-neon">NEON</div>
+                <div class="neon-pink  title-neon">RUNNER</div>
             </div>
-            <div style="color:rgba(255,255,255,0.4); font-size:0.8rem; letter-spacing:2px; margin-bottom:6px;">
+            <div style="color:rgba(255,255,255,0.4);font-size:clamp(0.6rem,2vw,0.8rem);letter-spacing:2px;margin-bottom:6px;">
                 ROLL FOREVER · DON'T FALL · GET FAST
             </div>
-            <div style="color:#ffff00; font-size:0.75rem; margin-bottom:18px;">
+            <div style="color:#ffff00;font-size:clamp(0.6rem,1.8vw,0.75rem);margin-bottom:clamp(12px,3vw,18px);">
                 BEST&nbsp;<span id="startHighScore" style="color:#fff;">0</span>
             </div>
 
             <!-- Skin picker -->
-            <div style="color:rgba(255,255,255,0.35); font-size:0.6rem; letter-spacing:3px; margin-bottom:8px;">CHOOSE YOUR BALL</div>
-            <div id="skinPicker" style="display:flex; gap:10px; justify-content:center; margin-bottom:20px;">
+            <div style="color:rgba(255,255,255,0.35);font-size:clamp(0.5rem,1.5vw,0.6rem);letter-spacing:3px;margin-bottom:8px;">CHOOSE YOUR BALL</div>
+            <div id="skinPicker" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:clamp(14px,3vw,20px);">
                 <!-- filled by JS -->
             </div>
 
             <button class="neon-btn" id="startBtn">START</button>
-            <div style="color:rgba(255,255,255,0.2); font-size:0.65rem; margin-top:16px; line-height:2; letter-spacing:1px;">
-                ←/→ &nbsp;·&nbsp; SWITCH LANE &nbsp;&nbsp; SPACE / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; SWIPE ON MOBILE
+            <div id="controlsHint" style="color:rgba(255,255,255,0.2);font-size:clamp(0.5rem,1.5vw,0.65rem);margin-top:14px;line-height:2;letter-spacing:1px;">
+                ←/→ SWITCH LANE &nbsp;·&nbsp; SPACE JUMP
             </div>
         </div>
 
         <!-- Right: leaderboard -->
-        <div class="panel" style="min-width:200px; margin-top:8px;">
-            <div style="color:rgba(0,255,255,0.5); font-size:0.6rem; letter-spacing:3px; margin-bottom:10px; text-align:center;">🏆 TOP SCORES</div>
-            <div id="leaderboardList" style="font-family:'Courier New',monospace;">
+        <div class="panel start-right">
+            <div style="color:rgba(0,255,255,0.5);font-size:clamp(0.5rem,1.5vw,0.6rem);letter-spacing:3px;margin-bottom:10px;text-align:center;">🏆 TOP SCORES</div>
+            <div id="leaderboardList" style="font-family:'Courier New',monospace;font-size:clamp(0.65rem,2vw,0.85rem);">
                 <!-- filled by JS -->
             </div>
         </div>
@@ -280,12 +332,11 @@
     <!-- 2D ambient particles (canvas) -->
     <canvas id="goCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;"></canvas>
 
-    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
-                justify-content:center;min-height:100%;padding:24px;text-align:center;">
+    <div class="go-inner">
 
         <!-- Title -->
         <div class="go-title" style="margin-bottom:10px;">
-            <div style="color:#ff0044;font-size:4rem;font-weight:900;letter-spacing:8px;
+            <div class="go-game-over-title" style="color:#ff0044;font-weight:900;letter-spacing:clamp(4px,1.5vw,8px);
                  text-shadow:0 0 20px #ff0044,0 0 50px #ff0044,0 0 100px #ff0044;line-height:1;">
                 GAME OVER
             </div>
@@ -374,25 +425,31 @@
 <!-- ── RANK UP POPUP ─────────────────────────────── -->
 <div id="rankPopup" style="position:fixed;top:30%;left:50%;transform:translateX(-50%) scale(1);
      z-index:16;pointer-events:none;opacity:0;text-align:center;
-     transition:opacity 0.2s, transform 0.2s; white-space:nowrap;">
-    <div style="font-size:0.65rem;letter-spacing:4px;color:rgba(255,255,255,0.5);margin-bottom:4px;">RANK UP</div>
-    <div id="rankPopupName" style="font-size:3rem;font-weight:900;letter-spacing:6px;"></div>
+     transition:opacity 0.2s, transform 0.2s; white-space:nowrap;padding:0 16px;">
+    <div style="font-size:clamp(0.5rem,1.5vw,0.65rem);letter-spacing:4px;color:rgba(255,255,255,0.5);margin-bottom:4px;">RANK UP</div>
+    <div id="rankPopupName" style="font-size:clamp(2rem,6vw,3rem);font-weight:900;letter-spacing:6px;"></div>
 </div>
 
-<!-- ── TOUCH CONTROLS (swipe hint overlay) ───────── -->
-<div id="touchControls" style="position:fixed;bottom:24px;left:0;right:0;z-index:10;
-     display:none;justify-content:center;align-items:center;gap:24px;pointer-events:none;">
-    <div style="color:rgba(0,255,255,0.3);font-size:0.7rem;letter-spacing:3px;font-family:'Courier New',monospace;">
-        ← SWIPE → &nbsp;|&nbsp; ↑ JUMP &nbsp;|&nbsp; ↓ ROLL
+<!-- ── SWIPE HINT (mobile only) ──────────────────── -->
+<div id="swipeHint">
+    <div class="swipe-arrows">
+        <div class="swipe-arrow">◀</div>
+        <div class="swipe-arrow" style="font-size:1rem;padding:4px;">↑<br><span style="font-size:0.6rem;opacity:0.6;">JUMP</span></div>
+        <div class="swipe-arrow">▶</div>
     </div>
+    <div class="swipe-label">SWIPE TO MOVE · TAP TO JUMP</div>
 </div>
-<!-- Lane indicator dots -->
-<div id="laneIndicator" style="position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+
+<!-- ── Lane indicator dots ───────────────────────── -->
+<div id="laneIndicator" style="position:fixed;bottom:clamp(10px,3vh,20px);left:50%;transform:translateX(-50%);
      z-index:10;display:none;gap:10px;align-items:center;">
     <div class="lane-dot" id="ldot0"></div>
     <div class="lane-dot" id="ldot1"></div>
     <div class="lane-dot" id="ldot2"></div>
 </div>
+
+<!-- Legacy id kept for JS compatibility -->
+<div id="touchControls" style="display:none;"></div>
 
 <!-- ── SPEED FLASH + POPUP ───────────────────────── -->
 <div id="speedFlash" style="position:fixed;inset:0;pointer-events:none;z-index:15;opacity:0;
@@ -400,16 +457,16 @@
      transition:opacity 0.08s ease-out;"></div>
 
 <div id="speedPopup" style="position:fixed;top:38%;left:50%;transform:translateX(-50%) translateY(0px);
-     z-index:16;pointer-events:none;opacity:0;text-align:center;transition:opacity 0.12s, transform 0.6s;">
-    <div class="neon-pink" style="font-size:1.8rem;font-weight:900;letter-spacing:5px;white-space:nowrap;">⚡ SPEED UP ⚡</div>
-    <div class="neon-cyan" style="font-size:1.2rem;font-weight:900;letter-spacing:3px;margin-top:4px;" id="speedPopupVal">×1.0</div>
+     z-index:16;pointer-events:none;opacity:0;text-align:center;transition:opacity 0.12s, transform 0.6s;padding:0 16px;">
+    <div class="neon-pink" style="font-size:clamp(1.2rem,4vw,1.8rem);font-weight:900;letter-spacing:5px;white-space:nowrap;">⚡ SPEED UP ⚡</div>
+    <div class="neon-cyan" style="font-size:clamp(0.9rem,3vw,1.2rem);font-weight:900;letter-spacing:3px;margin-top:4px;" id="speedPopupVal">×1.0</div>
 </div>
 
 <!-- ── POWER-UP HUD ──────────────────────────────── -->
-<div id="powerUpHUD" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+<div id="powerUpHUD" style="position:fixed;bottom:clamp(50px,8vh,70px);left:50%;transform:translateX(-50%);
      z-index:10;text-align:center;pointer-events:none;display:none;">
-    <div id="powerUpLabel" style="font-size:0.65rem;letter-spacing:3px;margin-bottom:4px;"></div>
-    <div style="width:160px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
+    <div id="powerUpLabel" style="font-size:clamp(0.55rem,1.5vw,0.65rem);letter-spacing:3px;margin-bottom:4px;"></div>
+    <div style="width:clamp(120px,30vw,160px);height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
         <div id="powerUpBar" style="height:100%;width:100%;border-radius:3px;transition:width 0.1s linear;"></div>
     </div>
 </div>
@@ -419,19 +476,19 @@
 
 <!-- ── PAUSE SCREEN ──────────────────────────────── -->
 <div id="pauseScreen" style="position:fixed;inset:0;display:none;align-items:center;
-     justify-content:center;z-index:25;background:rgba(0,0,10,0.82);">
-    <div class="text-center">
-        <div class="neon-cyan" style="font-size:4rem;font-weight:900;letter-spacing:8px;margin-bottom:24px;">PAUSED</div>
+     justify-content:center;z-index:25;background:rgba(0,0,10,0.85);">
+    <div style="text-align:center;padding:clamp(16px,4vw,32px);">
+        <div class="neon-cyan" style="font-size:clamp(2.5rem,8vw,4rem);font-weight:900;letter-spacing:clamp(4px,1.5vw,8px);margin-bottom:24px;">PAUSED</div>
         <button class="neon-btn" id="resumeBtn">RESUME</button>
-        <div style="color:rgba(255,255,255,0.2);font-size:0.65rem;margin-top:16px;letter-spacing:2px;">ESC TO RESUME</div>
+        <div style="color:rgba(255,255,255,0.2);font-size:clamp(0.55rem,1.5vw,0.65rem);margin-top:16px;letter-spacing:2px;">ESC · TAP RESUME</div>
     </div>
 </div>
 
 <!-- ── COMBO DISPLAY ─────────────────────────────── -->
-<div id="comboDisplay" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);
+<div id="comboDisplay" style="position:fixed;top:clamp(70px,12vh,100px);left:50%;transform:translateX(-50%);
      z-index:10;text-align:center;pointer-events:none;display:none;">
-    <div style="color:rgba(255,255,0,0.55);font-size:0.6rem;letter-spacing:3px;margin-bottom:1px;">COMBO</div>
-    <div style="color:#ffff00;font-size:2.6rem;font-weight:900;letter-spacing:2px;
+    <div style="color:rgba(255,255,0,0.55);font-size:clamp(0.5rem,1.5vw,0.6rem);letter-spacing:3px;margin-bottom:1px;">COMBO</div>
+    <div style="color:#ffff00;font-size:clamp(1.8rem,5vw,2.6rem);font-weight:900;letter-spacing:2px;
          text-shadow:0 0 12px #ffff00,0 0 28px #ffff00;">×<span id="comboNum">2</span></div>
 </div>
 
@@ -969,11 +1026,14 @@ function init() {
     for (let i = 0; i < 22; i++) generateChunk();
 
     // ── Events ───────────────────────────────────────────────
-    window.addEventListener('resize', () => {
+    function onResize() {
         camera.aspect = innerWidth / innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
-    });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    }
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
     window.addEventListener('keydown', e => {
         keys[e.code] = true;
         if (e.code==='Space') e.preventDefault();
@@ -1000,16 +1060,30 @@ function init() {
         inp.style.boxShadow = '0 0 14px rgba(180,0,255,0.3)';
     });
 
-    // ── Swipe / touch controls ────────────────────────────────
-    document.getElementById('touchControls').style.display = 'flex';
+    // ── Device detection & controls ──────────────────────────
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+                  || ('ontouchstart' in window && navigator.maxTouchPoints > 1);
+
+    // Show lane dots always; swipe hint only on mobile
     document.getElementById('laneIndicator').style.display = 'flex';
     updateLaneDots();
+    if (isMobile) {
+        document.getElementById('swipeHint').style.display = 'flex';
+        document.getElementById('controlsHint').style.display = 'none';
+    }
 
+    // ── Swipe gesture engine (works on all touch devices) ────
     let _swipeStartX = 0, _swipeStartY = 0, _swipeStartT = 0;
-    const SWIPE_THRESH = 35;
+    const SWIPE_THRESH = Math.min(innerWidth * 0.08, 40); // adaptive threshold
+
+    function _fireKey(code) {
+        keys[code] = true;
+        setTimeout(() => { keys[code] = false; }, 100);
+    }
 
     document.addEventListener('touchstart', e => {
-        if (!gameStarted || gameOver || gamePaused) return;
+        // Don't block UI button taps
+        if (e.target.closest('button, input, a')) return;
         _swipeStartX = e.touches[0].clientX;
         _swipeStartY = e.touches[0].clientY;
         _swipeStartT = Date.now();
@@ -1017,26 +1091,29 @@ function init() {
 
     document.addEventListener('touchend', e => {
         if (!gameStarted || gameOver || gamePaused) return;
-        const dx = e.changedTouches[0].clientX - _swipeStartX;
-        const dy = e.changedTouches[0].clientY - _swipeStartY;
-        const dt2 = Date.now() - _swipeStartT;
-        if (dt2 > 500) return; // too slow
-        if (Math.abs(dx) < SWIPE_THRESH && Math.abs(dy) < SWIPE_THRESH) {
-            // Tap = jump
-            keys['Space'] = true;
-            setTimeout(() => keys['Space'] = false, 80);
-            return;
-        }
-        if (Math.abs(dx) > Math.abs(dy)) {
-            // Horizontal swipe = lane change
-            if (dx < 0) keys['ArrowLeft']  = true, setTimeout(() => keys['ArrowLeft']  = false, 80);
-            else         keys['ArrowRight'] = true, setTimeout(() => keys['ArrowRight'] = false, 80);
+        if (e.target.closest('button, input, a')) return;
+        const dx  = e.changedTouches[0].clientX - _swipeStartX;
+        const dy  = e.changedTouches[0].clientY - _swipeStartY;
+        const dur = Date.now() - _swipeStartT;
+        if (dur > 600) return; // too slow to be intentional
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+
+        if (adx < SWIPE_THRESH && ady < SWIPE_THRESH) {
+            // Short tap → jump
+            _fireKey('Space');
+        } else if (adx > ady) {
+            // Horizontal swipe → lane change
+            _fireKey(dx < 0 ? 'ArrowLeft' : 'ArrowRight');
         } else if (dy < -SWIPE_THRESH) {
-            // Swipe up = jump
-            keys['Space'] = true;
-            setTimeout(() => keys['Space'] = false, 80);
+            // Swipe up → jump
+            _fireKey('Space');
         }
     }, { passive: true });
+
+    // Update swipe threshold on resize
+    window.addEventListener('resize', () => {
+        // recalculate if needed — SWIPE_THRESH already set, keep as is
+    });
 
     buildSkinPicker();
     renderLeaderboard();

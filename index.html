@@ -8,7 +8,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        body {
+            margin: 0; overflow: hidden;
+            background: radial-gradient(ellipse at 50% 100%, #1a004d 0%, #08001a 45%, #00000f 100%);
+            font-family: 'Courier New', monospace;
+        }
         canvas { display: block; }
 
         .neon-cyan  { color: #00ffff; text-shadow: 0 0 8px #00ffff, 0 0 20px #00ffff; }
@@ -749,8 +753,8 @@ const GEN_AHEAD     = 130;     // generate chunks until this far ahead of ball
 const CLEANUP_BACK  = 50;      // remove chunks this far behind ball
 
 // ── Neon palette ─────────────────────────────────────────────
-const EDGE_COLORS = [0x00ffff, 0xff00ff, 0x00ff88, 0xffff00, 0xff4488, 0x44aaff];
-const PLAT_COLORS = [0x004455, 0x440055, 0x003322, 0x443300, 0x220033, 0x002244];
+const EDGE_COLORS = [0x00ffff, 0xff00ff, 0x00ff88, 0xffff00, 0xff4488, 0xaa44ff, 0x44aaff, 0xff8800];
+const PLAT_COLORS = [0x060018, 0x060018, 0x060018, 0x060018, 0x060018, 0x060018]; // dark uniform road
 
 const keys = {};
 
@@ -760,8 +764,8 @@ const keys = {};
 function init() {
     // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000008);
-    scene.fog = new THREE.FogExp2(0x000008, 0.016);
+    scene.background = new THREE.Color(0x00000f);
+    scene.fog = new THREE.FogExp2(0x0a0020, 0.018);
 
     // Camera
     camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.1, 400);
@@ -778,26 +782,177 @@ function init() {
     clock = new THREE.Clock();
 
     // ── Lighting ─────────────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0x0a0a22, 2.5));
+    scene.add(new THREE.AmbientLight(0x080018, 3.5));
 
-    const sun = new THREE.DirectionalLight(0x2233ff, 0.6);
-    sun.position.set(10, 30, 10);
-    scene.add(sun);
+    // Purple-blue key light from above-front
+    const keyLight = new THREE.DirectionalLight(0x6633ff, 1.2);
+    keyLight.position.set(0, 40, 20);
+    scene.add(keyLight);
 
-    // Two colored point lights that track the ball
-    window._pL1 = new THREE.PointLight(0x00ffff, 3, 18);
-    window._pL2 = new THREE.PointLight(0xff00ff, 3, 18);
+    // Cyan fill from the left
+    const fillLight = new THREE.DirectionalLight(0x00ffee, 0.5);
+    fillLight.position.set(-20, 10, 0);
+    scene.add(fillLight);
+
+    // Dynamic ball lights
+    window._pL1 = new THREE.PointLight(0x00ffff, 4, 22);
+    window._pL2 = new THREE.PointLight(0xff00ff, 3, 20);
     scene.add(_pL1, _pL2);
 
-    // ── Starfield ────────────────────────────────────────────
+    // Ground bounce light (subtle pink from below road)
+    window._pL3 = new THREE.PointLight(0xff00aa, 1.2, 30);
+    _pL3.position.set(0, -1, 0);
+    scene.add(_pL3);
+
+    // ── Stars (coloured, not just white) ─────────────────────
     (function() {
-        const pos = [];
-        for (let i = 0; i < 2500; i++) {
-            pos.push((Math.random()-0.5)*500, Math.random()*150+5, (Math.random()-0.5)*600);
+        const pos = [], col = [];
+        const starColors = [
+            [1,1,1], [0.6,0.8,1], [1,0.7,1], [0.7,1,1], [1,1,0.6]
+        ];
+        for (let i = 0; i < 3000; i++) {
+            pos.push((Math.random()-0.5)*600, Math.random()*120+20, (Math.random()-0.5)*700);
+            const c = starColors[Math.floor(Math.random()*starColors.length)];
+            col.push(...c);
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        scene.add(new THREE.Points(geo, new THREE.PointsMaterial({color:0xffffff, size:0.25, transparent:true, opacity:0.7})));
+        geo.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+        scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+            vertexColors:true, size:0.32, transparent:true, opacity:0.85,
+            sizeAttenuation:true
+        })));
+    })();
+
+    // ── Moon ─────────────────────────────────────────────────
+    (function() {
+        const moonGeo = new THREE.SphereGeometry(8, 24, 24);
+        const moonMat = new THREE.MeshStandardMaterial({
+            color:0xaabbff, emissive:0x4466cc, emissiveIntensity:0.6,
+            metalness:0.0, roughness:0.9
+        });
+        const moon = new THREE.Mesh(moonGeo, moonMat);
+        moon.position.set(-80, 80, -300);
+        scene.add(moon);
+        // Moon glow halo
+        const haloGeo = new THREE.SphereGeometry(11, 16, 16);
+        const haloMat = new THREE.MeshBasicMaterial({ color:0x3355aa, transparent:true, opacity:0.12, side:THREE.BackSide });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        halo.position.copy(moon.position);
+        scene.add(halo);
+    })();
+
+    // ── Cyberpunk city skyline (tracks ball, always behind) ───
+    window._cityGroup = new THREE.Group();
+    scene.add(_cityGroup);
+    (function() {
+        const buildingColors = [0x003344, 0x220033, 0x001133, 0x110022, 0x002211];
+        const windowColors   = [0x00ffff, 0xff00ff, 0xffff00, 0x00ff88, 0xff4488];
+        const cityZ = -160; // relative to group origin
+
+        for (let i = 0; i < 55; i++) {
+            const w = 4 + Math.random()*10;
+            const h = 15 + Math.random()*60;
+            const d = 4 + Math.random()*8;
+            const x = (Math.random()-0.5)*260;
+            const z = cityZ + (Math.random()-0.5)*60;
+
+            const bMat = new THREE.MeshStandardMaterial({
+                color: buildingColors[Math.floor(Math.random()*buildingColors.length)],
+                emissive: 0x000011, emissiveIntensity:0.4, metalness:0.8, roughness:0.4
+            });
+            const bGeo = new THREE.BoxGeometry(w, h, d);
+            const building = new THREE.Mesh(bGeo, bMat);
+            building.position.set(x, h/2 - 2, z);
+            _cityGroup.add(building);
+
+            // Neon edge trim on rooftop
+            const trimCol = windowColors[Math.floor(Math.random()*windowColors.length)];
+            const trim = new THREE.Mesh(
+                new THREE.BoxGeometry(w+0.2, 0.3, d+0.2),
+                new THREE.MeshBasicMaterial({ color:trimCol, transparent:true, opacity:0.9 })
+            );
+            trim.position.set(x, h - 2, z);
+            _cityGroup.add(trim);
+
+            // Window grid
+            const rows = Math.floor(3 + Math.random()*6);
+            const cols = Math.floor(2 + Math.random()*3);
+            const wCol = windowColors[Math.floor(Math.random()*windowColors.length)];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (Math.random() > 0.55) continue;
+                    const win = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.6, 0.7, 0.15),
+                        new THREE.MeshBasicMaterial({ color:wCol, transparent:true, opacity:0.7+Math.random()*0.3 })
+                    );
+                    win.position.set(
+                        x + (c - cols/2 + 0.5) * (w/(cols+1)),
+                        2 + r * (h/(rows+2)),
+                        z + d/2 + 0.05
+                    );
+                    _cityGroup.add(win);
+                }
+            }
+        }
+    })();
+
+    // ── Horizon glow (neon sunset strip, tracks ball Z) ──────
+    (function() {
+        const horizMat = new THREE.MeshBasicMaterial({
+            color:0xff00aa, transparent:true, opacity:0.09, side:THREE.DoubleSide
+        });
+        window._horizPlane = new THREE.Mesh(new THREE.PlaneGeometry(500, 50), horizMat);
+        _horizPlane.rotation.x = Math.PI * 0.06;
+        scene.add(_horizPlane);
+
+        const stripMat = new THREE.MeshBasicMaterial({
+            color:0x6600ff, transparent:true, opacity:0.18, side:THREE.DoubleSide
+        });
+        window._horizStrip = new THREE.Mesh(new THREE.PlaneGeometry(500, 10), stripMat);
+        scene.add(_horizStrip);
+    })();
+
+    // ── Tron-style grid ground ────────────────────────────────
+    (function() {
+        // We'll create a grid using LineSegments rather than GridHelper so we can colour it
+        const size = 600, step = 4;
+        const verts = [];
+        for (let i = -size/2; i <= size/2; i += step) {
+            verts.push(i, -0.24, -size/2,  i, -0.24,  size/2);   // along Z
+            verts.push(-size/2, -0.24, i,   size/2, -0.24, i);   // along X
+        }
+        const gridGeo = new THREE.BufferGeometry();
+        gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        const gridMat = new THREE.LineBasicMaterial({ color:0x0033aa, transparent:true, opacity:0.22 });
+        window._gridLines = new THREE.LineSegments(gridGeo, gridMat);
+        scene.add(_gridLines);
+    })();
+
+    // ── Aurora streaks (static angled planes high in sky) ─────
+    (function() {
+        const auroraColors = [0x00ffcc, 0xaa00ff, 0x0066ff];
+        for (let i = 0; i < 6; i++) {
+            const aGeo = new THREE.PlaneGeometry(30 + Math.random()*60, 25 + Math.random()*30);
+            const aMat = new THREE.MeshBasicMaterial({
+                color: auroraColors[i % auroraColors.length],
+                transparent:true, opacity:0.03 + Math.random()*0.04,
+                side:THREE.DoubleSide
+            });
+            const aurora = new THREE.Mesh(aGeo, aMat);
+            aurora.position.set(
+                (Math.random()-0.5)*200,
+                50 + Math.random()*40,
+                -100 - Math.random()*120
+            );
+            aurora.rotation.x = -Math.PI/2 + (Math.random()-0.5)*0.5;
+            aurora.rotation.z = (Math.random()-0.5)*0.8;
+            scene.add(aurora);
+            // Store for gentle animation
+            aurora.userData.baseOpacity = aMat.opacity;
+            aurora.userData.phase = Math.random()*Math.PI*2;
+        }
+        window._auroras = scene.children.filter(c => c.userData.phase !== undefined);
     })();
 
     // ── Ball ─────────────────────────────────────────────────
@@ -979,27 +1134,37 @@ function addPlatform(x, y, z, w, d, col) {
     const h = 0.5;
     const geo  = new THREE.BoxGeometry(w, h, d);
     const mat  = new THREE.MeshStandardMaterial({
-        color: col, metalness:0.4, roughness:0.65,
-        emissive: col, emissiveIntensity: 0.12
+        color: 0x080020, metalness:0.95, roughness:0.08,
+        emissive: 0x0a0030, emissiveIntensity: 0.3
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y, z);
     mesh.receiveShadow = true;
     scene.add(mesh);
 
-    // Neon edge glow strip
-    const edgeCol = EDGE_COLORS[Math.floor(Math.random() * EDGE_COLORS.length)];
+    // Neon edge glow — both sides of road for strong visual lane
+    const edgeCol = EDGE_COLORS[chunkCount % EDGE_COLORS.length];
     const edgeMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(w + 0.08, 0.07, d + 0.08),
-        new THREE.MeshBasicMaterial({ color: edgeCol, transparent:true, opacity:0.95 })
+        new THREE.BoxGeometry(w + 0.1, 0.1, d + 0.1),
+        new THREE.MeshBasicMaterial({ color: edgeCol, transparent:true, opacity:1.0 })
     );
     edgeMesh.position.set(x, y + h/2, z);
     scene.add(edgeMesh);
 
-    // Lane divider lines (dashed strips between lanes)
-    const divMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.08 });
+    // Side rail neon strips (left and right edge of road, vertical)
+    [-(w/2), w/2].forEach(sx => {
+        const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.4, d),
+            new THREE.MeshBasicMaterial({ color:edgeCol, transparent:true, opacity:0.6 })
+        );
+        rail.position.set(x + sx, y + h/2 - 0.1, z);
+        scene.add(rail);
+    });
+
+    // Lane divider lines
+    const divMat = new THREE.MeshBasicMaterial({ color:edgeCol, transparent:true, opacity:0.12 });
     [-2, 2].forEach(lx => {
-        const div = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, d), divMat);
+        const div = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, d), divMat);
         div.position.set(x + lx, y + h/2 + 0.01, z);
         scene.add(div);
     });
@@ -1569,6 +1734,29 @@ function update(dt) {
     // ── Neon lights track ball ──────────────────────────────
     _pL1.position.set(ball.position.x - 2, ball.position.y + 3, ball.position.z);
     _pL2.position.set(ball.position.x + 2, ball.position.y + 1, ball.position.z + 2);
+    if (window._pL3) _pL3.position.set(ball.position.x, ball.position.y - 0.5, ball.position.z);
+
+    // ── Animate aurora ──────────────────────────────────────
+    const _t = performance.now() * 0.001;
+    if (window._auroras) {
+        _auroras.forEach(a => {
+            a.material.opacity = a.userData.baseOpacity * (0.6 + Math.sin(_t * 0.4 + a.userData.phase) * 0.4);
+        });
+    }
+
+    // ── Grid scrolls with ball to feel infinite ─────────────
+    if (window._gridLines) {
+        _gridLines.position.z = ball.position.z - (ball.position.z % 4);
+    }
+
+    // ── City skyline + horizon track ball Z ─────────────────
+    if (window._cityGroup) {
+        _cityGroup.position.z = ball.position.z;
+    }
+    if (window._horizPlane) {
+        _horizPlane.position.set(0, 14, ball.position.z - 200);
+        _horizStrip.position.set(0, 1.5, ball.position.z - 200);
+    }
 
     // ── Trail ───────────────────────────────────────────────
     trailTimer += dt;

@@ -536,8 +536,8 @@ const SKINS = [
     { name:'CYBER',  color:0x00ffff, emissive:0x003344, emissiveI:0.8, metalness:0.9, roughness:0.05, trail:0x00ffff, unlock:0 },
     { name:'FIRE',   color:0xff4400, emissive:0x661100, emissiveI:0.9, metalness:0.4, roughness:0.3,  trail:0xff6600, unlock:0 },
     { name:'GALAXY', color:0xaa44ff, emissive:0x220066, emissiveI:0.7, metalness:0.8, roughness:0.1,  trail:0xcc88ff, unlock:0 },
-    { name:'GHOST',  color:0xffffff, emissive:0x224466, emissiveI:0.4, metalness:0.0, roughness:0.0,  trail:0xaaccff, unlock:0 },
-    { name:'GOLD',   color:0xffcc00, emissive:0x443300, emissiveI:0.6, metalness:1.0, roughness:0.05, trail:0xffee44, unlock:0 },
+    { name:'GHOST',  color:0xffffff, emissive:0xffffff, emissiveI:0.15, metalness:0.0, roughness:0.05,  trail:0xddddff, unlock:0 },
+    { name:'GOLD',   color:0xffcc00, emissive:0xffaa00, emissiveI:0.5, metalness:1.0, roughness:0.05, trail:0xffee44, unlock:0 },
 ];
 let selectedSkin = 0;
 function isSkinUnlocked(i) { return highScore >= SKINS[i].unlock; }
@@ -839,25 +839,26 @@ function init() {
     clock = new THREE.Clock();
 
     // ── Lighting ─────────────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0x080018, 3.5));
+    // Neutral white ambient so ball colors render true
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 
-    // Purple-blue key light from above-front
-    const keyLight = new THREE.DirectionalLight(0x6633ff, 1.2);
+    // Soft top-down white key light
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
     keyLight.position.set(0, 40, 20);
     scene.add(keyLight);
 
-    // Cyan fill from the left
-    const fillLight = new THREE.DirectionalLight(0x00ffee, 0.5);
-    fillLight.position.set(-20, 10, 0);
-    scene.add(fillLight);
+    // Subtle purple-blue rim from behind for atmosphere (low intensity)
+    const rimLight = new THREE.DirectionalLight(0x4422aa, 0.3);
+    rimLight.position.set(0, 10, -20);
+    scene.add(rimLight);
 
-    // Dynamic ball lights
-    window._pL1 = new THREE.PointLight(0x00ffff, 4, 22);
-    window._pL2 = new THREE.PointLight(0xff00ff, 3, 20);
+    // Dynamic ball point lights — match skin color + accent
+    window._pL1 = new THREE.PointLight(0x00ffff, 3, 18);  // skin-colored, updated in applySkin
+    window._pL2 = new THREE.PointLight(0xff00ff, 1.5, 16); // accent magenta (dimmer)
     scene.add(_pL1, _pL2);
 
-    // Ground bounce light (subtle pink from below road)
-    window._pL3 = new THREE.PointLight(0xff00aa, 1.2, 30);
+    // Ground bounce (very subtle, neutral)
+    window._pL3 = new THREE.PointLight(0xffffff, 0.6, 20);
     _pL3.position.set(0, -1, 0);
     scene.add(_pL3);
 
@@ -1127,80 +1128,101 @@ function init() {
 // =============================================================
 function generateChunk() {
     const z    = lastChunkZ - 10;
-    const diff = Math.min(chunkCount / 30, 1);
-    const pattern = chunkCount % 8;
     const col  = PLAT_COLORS[chunkCount % PLAT_COLORS.length];
+    const roadW = 14;
 
-    // Full 3-lane road width (always the same road, obstacles in lanes)
-    const roadW = 14;  // covers all 3 lanes comfortably
+    // ── Difficulty tiers ──────────────────────────────────────
+    // Tier 0 (0-7):   free run, coins only — learn controls
+    // Tier 1 (8-17):  single spikes introduced gently
+    // Tier 2 (18-29): two-lane blocks, moving walls
+    // Tier 3 (30-44): black holes, laser gates
+    // Tier 4 (45+):   rotating bars + combos
+    const tier = chunkCount < 8  ? 0
+               : chunkCount < 18 ? 1
+               : chunkCount < 30 ? 2
+               : chunkCount < 45 ? 3 : 4;
 
-    switch (pattern) {
-        case 0: // Clear road — breathing room
-            addPlatform(0, 0, z, roadW, 10, col);
-            // Coin line down center lane
-            for (let i = 0; i < 5; i++) addCollectible(LANES[1], 2.2, z - i*1.8);
-            break;
+    addPlatform(0, 0, z, roadW, 10, col);
 
-        case 1: // One lane blocked — dodge left or right
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 3) {
-                const blocked = Math.floor(Math.random()*3);
-                addObstacleSpike(LANES[blocked], z);
-                // Coins in safe lanes
-                const safe = [0,1,2].filter(l=>l!==blocked);
-                for (let i = 0; i < 3; i++) addCollectible(LANES[safe[i%safe.length]], 2.2, z - i*2.2);
-            }
-            break;
-
-        case 2: // Two lanes blocked — only one safe
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 6) {
-                const safe = Math.floor(Math.random()*3);
-                [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
-                for (let i = 0; i < 4; i++) addCollectible(LANES[safe], 2.2, z - i*1.8);
-            }
-            break;
-
-        case 3: // Moving wall — weave timing
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 5) addObstacleMoving(0, z-3);
-            break;
-
-        case 4: // Coin zigzag across lanes
-            addPlatform(0, 0, z, roadW, 10, col);
-            [0,1,2,1,0,1,2].forEach((lane, i) => addCollectible(LANES[lane], 2.2, z - i*1.6));
-            break;
-
-        case 5: // Black hole in one lane — dodge it!
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 5) {
-                const hlane = Math.floor(Math.random()*3);
-                addBlackHole(LANES[hlane], z - 3);
-                const safe = [0,1,2].filter(l=>l!==hlane);
-                safe.forEach(l => { for (let i=0;i<3;i++) addCollectible(LANES[l],2.2,z-i*2); });
-            }
-            break;
-
-        case 6: // Rotating bar — time your pass
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 7) {
-                addRotatingBar(0, z - 3);
-                for (let i=0;i<3;i++) addCollectible(LANES[1], 3.5, z - 6 - i*1.5);
-            }
-            break;
-
-        case 7: // Laser gate — dodge timing
-            addPlatform(0, 0, z, roadW, 10, col);
-            if (chunkCount > 6) {
-                addLaserGate(z - 2);
-                addLaserGate(z - 6);
-            }
-            if (chunkCount > 4) addBoostPad(LANES[1], 0, z-8.5);
-            break;
+    if (tier === 0) {
+        if (chunkCount < 4) {
+            for (let i = 0; i < 4; i++) addCollectible(LANES[1], 2.2, z - i*2);
+        } else {
+            [1,0,1,2,1].forEach((lane,i) => addCollectible(LANES[lane], 2.2, z - i*1.8));
+        }
     }
-
-    // Rare power-up
-    if (chunkCount > 5 && Math.random() > 0.85) addPowerUp(LANES[Math.floor(Math.random()*3)], 3.2, z-2);
+    else if (tier === 1) {
+        const pat = (chunkCount - 8) % 4;
+        if (pat === 0 || pat === 2) {
+            [1,0,2,1].forEach((lane,i) => addCollectible(LANES[lane], 2.2, z - i*2));
+        } else {
+            const blocked = Math.floor(Math.random()*3);
+            addObstacleSpike(LANES[blocked], z);
+            const safe = [0,1,2].filter(l=>l!==blocked);
+            safe.forEach(l => addCollectible(LANES[l], 2.2, z - 2));
+        }
+    }
+    else if (tier === 2) {
+        const pat = (chunkCount - 18) % 5;
+        if (pat === 0) {
+            const safe = Math.floor(Math.random()*3);
+            [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
+            for (let i=0;i<3;i++) addCollectible(LANES[safe], 2.2, z - i*2);
+        } else if (pat === 1) {
+            addObstacleMoving(0, z-3);
+        } else if (pat === 2) {
+            const blocked = Math.floor(Math.random()*3);
+            addObstacleSpike(LANES[blocked], z);
+            [0,1,2].filter(l=>l!==blocked).forEach(l => addCollectible(LANES[l], 2.2, z - 2));
+        } else {
+            [0,1,2,1,0].forEach((lane,i) => addCollectible(LANES[lane], 2.2, z - i*1.8));
+        }
+        if (Math.random() > 0.75) addBoostPad(LANES[1], 0, z-7);
+    }
+    else if (tier === 3) {
+        const pat = (chunkCount - 30) % 6;
+        if (pat === 0) {
+            const hlane = Math.floor(Math.random()*3);
+            addBlackHole(LANES[hlane], z - 3);
+            [0,1,2].filter(l=>l!==hlane).forEach(l => { for(let i=0;i<2;i++) addCollectible(LANES[l],2.2,z-i*2); });
+        } else if (pat === 1) {
+            addLaserGate(z - 2); addLaserGate(z - 6);
+        } else if (pat === 2) {
+            const safe = Math.floor(Math.random()*3);
+            [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
+            addCollectible(LANES[safe], 2.2, z-2);
+        } else if (pat === 3) {
+            addObstacleMoving(0, z-3);
+            addObstacleSpike(LANES[Math.floor(Math.random()*3)], z-7);
+        } else {
+            [1,0,1,2,1].forEach((lane,i) => addCollectible(LANES[lane], 2.2, z - i*1.8));
+            if (Math.random()>0.6) addBoostPad(LANES[1], 0, z-5);
+        }
+        if (Math.random() > 0.8) addPowerUp(LANES[Math.floor(Math.random()*3)], 3.2, z-2);
+    }
+    else {
+        const pat = (chunkCount - 45) % 7;
+        if (pat === 0) {
+            addRotatingBar(0, z - 3);
+            for (let i=0;i<3;i++) addCollectible(LANES[1], 3.5, z - 6 - i*1.5);
+        } else if (pat === 1) {
+            addBlackHole(LANES[Math.floor(Math.random()*3)], z - 3);
+            addLaserGate(z - 7);
+        } else if (pat === 2) {
+            addLaserGate(z - 2);
+            addObstacleSpike(LANES[Math.floor(Math.random()*3)], z-6);
+        } else if (pat === 3) {
+            addRotatingBar(0, z - 2); addObstacleMoving(0, z-7);
+        } else if (pat === 4) {
+            const safe = Math.floor(Math.random()*3);
+            [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
+            addBlackHole(LANES[safe], z-6);
+        } else {
+            [0,1,2,1,0,1,2].forEach((lane,i) => addCollectible(LANES[lane], 2.2, z - i*1.6));
+            addBoostPad(LANES[1], 0, z-5);
+        }
+        if (Math.random() > 0.75) addPowerUp(LANES[Math.floor(Math.random()*3)], 3.2, z-2);
+    }
 
     lastChunkZ = z;
     chunkCount++;
@@ -1434,8 +1456,15 @@ function applySkin() {
     ball.material.metalness  = s.metalness;
     ball.material.roughness  = s.roughness;
     ball.material.needsUpdate = true;
-    // Update ball point light to match skin color so the glow is correct
+    // Ball point light: use skin color so glow matches
     if (window._pL1) _pL1.color.setHex(s.color);
+    // For very light skins (white/gold) dim the accent magenta light
+    // so it doesn't tint the ball pink
+    const r = (s.color >> 16) & 0xff;
+    const g = (s.color >> 8)  & 0xff;
+    const b =  s.color        & 0xff;
+    const brightness = (r + g + b) / 765; // 0-1
+    if (window._pL2) _pL2.intensity = brightness > 0.7 ? 0.4 : 1.5;
 }
 
 // =============================================================

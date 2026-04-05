@@ -62,6 +62,101 @@
 
         #ui { pointer-events: none; }
 
+        /* Speed lines at high velocity */
+        @keyframes speedLine {
+            0%   { background-position: 0 0; }
+            100% { background-position: -300px 0; }
+        }
+        #speedLines {
+            position: fixed; inset: 0; pointer-events: none; z-index: 8;
+            opacity: 0; transition: opacity 0.4s;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent 0px, transparent 60px,
+                rgba(0,255,255,0.05) 60px, rgba(0,255,255,0.05) 61px,
+                transparent 61px, transparent 100px,
+                rgba(255,0,255,0.03) 100px, rgba(255,0,255,0.03) 101px
+            );
+            animation: speedLine 0.18s linear infinite;
+        }
+
+        /* ── Game Over animations ─────────────────── */
+        @keyframes goFadeIn    { from { opacity:0 } to { opacity:1 } }
+        @keyframes goSlideDown { from { opacity:0; transform:translateY(-40px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes goSlideUp   { from { opacity:0; transform:translateY(40px)  } to { opacity:1; transform:translateY(0) } }
+        @keyframes scalePop    { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+        @keyframes newBestPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+        @keyframes divGlow     { 0%,100%{opacity:0.3} 50%{opacity:1} }
+        @keyframes btnBounce   { 0%{transform:scale(1)} 30%{transform:scale(0.9)} 70%{transform:scale(1.1)} 100%{transform:scale(1)} }
+        @keyframes savedPop    { 0%{opacity:0;transform:scale(0.5)} 60%{transform:scale(1.2)} 100%{opacity:1;transform:scale(1)} }
+
+        .go-title    { animation: goSlideDown 0.5s ease both; }
+        .go-score    { animation: scalePop    0.6s ease 0.2s both; }
+        .go-actions  { animation: goSlideUp   0.5s ease 0.4s both; }
+        .go-share    { animation: goSlideUp   0.5s ease 0.55s both; }
+        .new-best-badge { animation: newBestPulse 1.2s ease infinite; }
+        .go-divider  { animation: divGlow 2s ease infinite; }
+        .btn-bounce  { animation: btnBounce 0.35s ease forwards; }
+
+        /* Primary (Play Again) button */
+        .neon-btn-primary {
+            background: rgba(0,255,255,0.12);
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0,255,255,0.6), inset 0 0 20px rgba(0,255,255,0.08);
+        }
+        .neon-btn-primary:hover {
+            background: rgba(0,255,255,0.22);
+            box-shadow: 0 0 40px rgba(0,255,255,1), inset 0 0 30px rgba(0,255,255,0.15);
+        }
+        /* Secondary button */
+        .neon-btn-ghost {
+            border-color: rgba(255,255,255,0.25);
+            color: rgba(255,255,255,0.5);
+            box-shadow: none;
+            font-size: 1rem;
+            padding: 10px 28px;
+        }
+        .neon-btn-ghost:hover {
+            border-color: rgba(255,255,255,0.6);
+            color: #fff;
+            box-shadow: 0 0 16px rgba(255,255,255,0.2);
+        }
+        /* Share buttons */
+        .neon-btn-share {
+            border-color: #00ff88; color: #00ff88;
+            box-shadow: 0 0 12px rgba(0,255,136,0.3);
+            font-size: 0.85rem; padding: 10px 20px; letter-spacing: 2px;
+        }
+        .neon-btn-share:hover {
+            box-shadow: 0 0 28px rgba(0,255,136,0.8);
+            background: rgba(0,255,136,0.08);
+        }
+        /* Magenta/purple accent — SUBMIT SCORE */
+        .neon-btn-magenta {
+            background: rgba(180,0,255,0.1);
+            border-color: #cc44ff;
+            color: #cc44ff;
+            box-shadow: 0 0 16px rgba(180,0,255,0.45), inset 0 0 14px rgba(180,0,255,0.07);
+        }
+        .neon-btn-magenta:hover {
+            background: rgba(180,0,255,0.2);
+            box-shadow: 0 0 36px rgba(180,0,255,0.9), inset 0 0 22px rgba(180,0,255,0.12);
+            transform: scale(1.05);
+        }
+        /* Nickname section container */
+        .go-nick-box {
+            background: rgba(140,0,255,0.06);
+            border: 1px solid rgba(180,0,255,0.3);
+            border-radius: 10px;
+            padding: 18px 24px;
+            box-shadow: 0 0 20px rgba(140,0,255,0.12);
+        }
+        @keyframes submitGlow {
+            0%,100% { box-shadow: 0 0 16px rgba(180,0,255,0.45); }
+            50%      { box-shadow: 0 0 40px rgba(180,0,255,1), 0 0 80px rgba(180,0,255,0.5); }
+        }
+        .submit-glow { animation: submitGlow 0.5s ease both; }
+
         /* Scanline overlay for retro CRT feel */
         body::after {
             content: '';
@@ -89,9 +184,6 @@
         <div class="neon-cyan text-3xl font-black tracking-widest" id="score">0</div>
         <div style="color:rgba(0,255,255,0.4); font-size:0.65rem; letter-spacing:2px;">SCORE</div>
         <div id="rankBadge" style="font-size:0.65rem; font-weight:900; letter-spacing:2px; margin-top:3px; color:#aaaaaa;">ROOKIE</div>
-        <div style="color:#ffff00; font-size:0.7rem; margin-top:2px;">
-            BEST&nbsp;<span id="highScore">0</span>
-        </div>
     </div>
 
     <!-- Speed panel (center) -->
@@ -103,13 +195,20 @@
         </div>
     </div>
 
-    <!-- Lives panel -->
+    <!-- Lives + pause panel -->
     <div class="panel text-right">
         <div style="color:rgba(0,255,255,0.4); font-size:0.6rem; letter-spacing:2px;">LIVES</div>
         <div style="font-size:1.2rem;" id="lives">❤️❤️❤️</div>
-        <div style="color:rgba(255,255,255,0.25); font-size:0.6rem; margin-top:4px; line-height:1.6">
-            SPACE/W · JUMP<br>A/D · STRAFE
+        <div style="color:#ffff00; font-size:0.65rem; margin-top:4px;">
+            BEST&nbsp;<span id="highScore">0</span>
         </div>
+        <button id="pauseBtn" onclick="if(gameStarted && !gameOver) togglePause()"
+            style="pointer-events:all; margin-top:6px; background:transparent;
+                   border:1px solid rgba(0,255,255,0.35); color:#00ffff; border-radius:4px;
+                   font-family:'Courier New',monospace; font-size:0.6rem; letter-spacing:2px;
+                   padding:3px 8px; cursor:pointer; width:100%;">
+            ⏸ PAUSE
+        </button>
     </div>
 </div>
 
@@ -153,36 +252,99 @@
 </div>
 
 <!-- ── GAME OVER SCREEN ─────────────────────────── -->
-<div id="gameOverScreen" class="fixed inset-0 items-center justify-center z-20" style="display:none; background:rgba(0,0,10,0.88)">
-    <div class="text-center">
-        <div class="neon-red" style="font-size:4.5rem; font-weight:900; letter-spacing:6px; line-height:1.1; margin-bottom:20px;">
-            GAME<br>OVER
-        </div>
-        <div class="panel" style="display:inline-block; min-width:220px; margin-bottom:16px;">
-            <div class="neon-cyan text-4xl font-black" id="finalScore">0</div>
-            <div style="color:rgba(0,255,255,0.35); font-size:0.65rem; letter-spacing:2px; margin-bottom:8px;">SCORE</div>
-            <div id="newBestMsg" class="neon-green" style="font-size:0.95rem; font-weight:900; letter-spacing:2px; display:none; margin-bottom:6px;">★ NEW BEST ★</div>
-            <div style="color:rgba(255,255,255,0.35); font-size:0.75rem;">
-                BEST&nbsp;<span id="finalHighScore">0</span>
+<div id="gameOverScreen" class="fixed inset-0 z-20" style="display:none; background:rgba(0,0,8,0.92); animation:goFadeIn 0.4s ease both; overflow-y:auto;">
+
+    <!-- 2D ambient particles (canvas) -->
+    <canvas id="goCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;"></canvas>
+
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
+                justify-content:center;min-height:100%;padding:24px;text-align:center;">
+
+        <!-- Title -->
+        <div class="go-title" style="margin-bottom:10px;">
+            <div style="color:#ff0044;font-size:4rem;font-weight:900;letter-spacing:8px;
+                 text-shadow:0 0 20px #ff0044,0 0 50px #ff0044,0 0 100px #ff0044;line-height:1;">
+                GAME OVER
             </div>
         </div>
 
-        <!-- Initials entry (shown when score qualifies for top 5) -->
-        <div id="initialsBox" style="display:none; margin-bottom:16px;">
-            <div style="color:#ffff00; font-size:0.7rem; letter-spacing:3px; margin-bottom:8px;">ENTER YOUR NICKNAME</div>
-            <input id="initialsInput" maxlength="20"
-                style="background:transparent; border:2px solid #00ffff; color:#00ffff;
-                       font-family:'Courier New',monospace; font-size:2rem; font-weight:900;
-                       text-align:center; width:200px; letter-spacing:3px; outline:none;
-                       text-transform:uppercase; border-radius:4px; padding:4px 8px;
-                       box-shadow:0 0 12px rgba(0,255,255,0.4);">
-            <br>
-            <button class="neon-btn" id="saveInitialsBtn" style="margin-top:10px; font-size:1rem; padding:8px 28px;">SAVE</button>
+        <!-- NEW BEST badge -->
+        <div id="newBestMsg" class="new-best-badge" style="display:none;margin-bottom:10px;">
+            <div style="background:linear-gradient(90deg,#ff00ff,#ffff00,#ff00ff);background-size:200%;
+                 -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+                 font-size:1.1rem;font-weight:900;letter-spacing:4px;padding:4px 0;">
+                ★ NEW HIGH SCORE ★
+            </div>
         </div>
 
-        <div>
-            <button class="neon-btn" id="restartBtn">RETRY</button>
+        <!-- Glowing divider -->
+        <div class="go-divider" style="width:300px;height:1px;background:linear-gradient(90deg,transparent,#00ffff,transparent);margin:10px auto 18px;"></div>
+
+        <!-- Score block -->
+        <div class="go-score">
+            <div style="color:rgba(0,255,255,0.65);font-size:0.78rem;letter-spacing:5px;margin-bottom:6px;
+                        text-shadow:0 0 8px rgba(0,255,255,0.4);">YOUR SCORE</div>
+            <div style="color:#ffffff;font-size:5.5rem;font-weight:900;letter-spacing:4px;line-height:1;
+                 text-shadow:0 0 20px #00ffff,0 0 60px #00ffff,0 0 120px rgba(0,255,255,0.4);" id="finalScore">0</div>
+            <div id="goRankBadge" style="font-size:1.5rem;font-weight:900;letter-spacing:6px;margin-top:10px;
+                                         text-shadow:0 0 16px currentColor;">ROOKIE</div>
+            <div style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-top:8px;letter-spacing:2px;">
+                ALL-TIME BEST&nbsp;<span id="finalHighScore" style="color:rgba(255,255,255,0.65);font-weight:900;">0</span>
+            </div>
         </div>
+
+        <!-- Glowing divider -->
+        <div class="go-divider" style="width:300px;height:1px;background:linear-gradient(90deg,transparent,#cc44ff,transparent);margin:20px auto 22px;"></div>
+
+        <!-- Nickname entry (grouped in purple-tinted box) -->
+        <div id="initialsBox" class="go-nick-box" style="display:none;margin-bottom:22px;width:100%;max-width:380px;">
+            <div style="color:#cc88ff;font-size:0.85rem;letter-spacing:3px;margin-bottom:12px;
+                        text-shadow:0 0 10px rgba(180,0,255,0.7);">
+                ✦ ENTER YOUR NICKNAME TO SAVE YOUR RECORD ✦
+            </div>
+            <input id="initialsInput" maxlength="20" placeholder="YOUR NICKNAME"
+                style="background:rgba(140,0,255,0.08);border:2px solid rgba(180,0,255,0.55);color:#cc44ff;
+                       font-family:'Courier New',monospace;font-size:1.4rem;font-weight:900;
+                       text-align:center;width:100%;letter-spacing:3px;outline:none;
+                       text-transform:uppercase;border-radius:6px;padding:8px 10px;
+                       box-shadow:0 0 14px rgba(180,0,255,0.3);transition:border-color 0.2s,box-shadow 0.2s;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;">
+                <button class="neon-btn neon-btn-magenta" id="saveInitialsBtn"
+                    style="font-size:0.95rem;padding:11px 28px;letter-spacing:3px;">
+                    💾 SUBMIT SCORE
+                </button>
+                <div id="savedConfirm" style="display:none;animation:savedPop 0.4s ease both;">
+                    <span style="color:#00ff88;font-size:1.8rem;">✓</span>
+                    <span style="color:#00ff88;font-size:0.8rem;letter-spacing:2px;display:block;text-shadow:0 0 8px #00ff88;">SAVED!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Primary actions -->
+        <div class="go-actions" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px;">
+            <button class="neon-btn neon-btn-primary" id="restartBtn" style="font-size:1.25rem;padding:16px 52px;letter-spacing:5px;width:100%;max-width:320px;">
+                ▶ PLAY AGAIN
+            </button>
+            <button class="neon-btn neon-btn-ghost" id="mainMenuBtn" style="width:100%;max-width:320px;">
+                MAIN MENU
+            </button>
+        </div>
+
+        <!-- Share section -->
+        <div class="go-share">
+            <div style="color:rgba(255,255,255,0.55);font-size:0.82rem;letter-spacing:4px;margin-bottom:12px;
+                        text-shadow:0 0 8px rgba(255,255,255,0.2);">— SHARE YOUR SCORE —</div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button class="neon-btn neon-btn-share" id="shareImageBtn">📸 SHARE AS IMAGE</button>
+                <button class="neon-btn neon-btn-share" id="shareCopyBtn">📋 COPY SCORE</button>
+            </div>
+            <div style="color:rgba(255,100,255,0.85);font-size:0.8rem;letter-spacing:2px;margin-top:12px;font-style:italic;
+                        text-shadow:0 0 8px rgba(255,0,255,0.4);">
+                "Can you beat my score? ⚡"
+            </div>
+            <div id="copiedMsg" style="color:#00ff88;font-size:0.75rem;letter-spacing:2px;margin-top:8px;opacity:0;transition:opacity 0.3s;">✓ COPIED TO CLIPBOARD</div>
+        </div>
+
     </div>
 </div>
 
@@ -232,6 +394,19 @@
     </div>
 </div>
 
+<!-- ── SPEED LINES ───────────────────────────────── -->
+<div id="speedLines"></div>
+
+<!-- ── PAUSE SCREEN ──────────────────────────────── -->
+<div id="pauseScreen" style="position:fixed;inset:0;display:none;align-items:center;
+     justify-content:center;z-index:25;background:rgba(0,0,10,0.82);">
+    <div class="text-center">
+        <div class="neon-cyan" style="font-size:4rem;font-weight:900;letter-spacing:8px;margin-bottom:24px;">PAUSED</div>
+        <button class="neon-btn" id="resumeBtn">RESUME</button>
+        <div style="color:rgba(255,255,255,0.2);font-size:0.65rem;margin-top:16px;letter-spacing:2px;">ESC TO RESUME</div>
+    </div>
+</div>
+
 <!-- ── COMBO DISPLAY ─────────────────────────────── -->
 <div id="comboDisplay" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);
      z-index:10;text-align:center;pointer-events:none;display:none;">
@@ -264,6 +439,9 @@ let highScore = +localStorage.getItem('neonRunnerHS') || 0;
 let shakeTimer = 0;
 const SHAKE_DUR = 0.45;
 const SHAKE_MAG = 0.4;
+let gamePaused = false;
+let boostPads  = [];
+let squishVel  = new THREE.Vector3();
 
 // ── Rank milestones ───────────────────────────────────────────
 const RANKS = [
@@ -278,13 +456,14 @@ let currentRankIdx = 0;
 
 // ── Ball Skins ────────────────────────────────────────────────
 const SKINS = [
-    { name:'CYBER',   color:0x00ffff, emissive:0x003344, emissiveI:0.8,  metalness:0.9, roughness:0.05, trail:0x00ffff },
-    { name:'FIRE',    color:0xff4400, emissive:0x661100, emissiveI:0.9,  metalness:0.4, roughness:0.3,  trail:0xff6600 },
-    { name:'GALAXY',  color:0xaa44ff, emissive:0x220066, emissiveI:0.7,  metalness:0.8, roughness:0.1,  trail:0xcc88ff },
-    { name:'GHOST',   color:0xffffff, emissive:0x224466, emissiveI:0.4,  metalness:0.0, roughness:0.0,  trail:0xaaccff },
-    { name:'GOLD',    color:0xffcc00, emissive:0x443300, emissiveI:0.6,  metalness:1.0, roughness:0.05, trail:0xffee44 },
+    { name:'CYBER',  color:0x00ffff, emissive:0x003344, emissiveI:0.8, metalness:0.9, roughness:0.05, trail:0x00ffff, unlock:0 },
+    { name:'FIRE',   color:0xff4400, emissive:0x661100, emissiveI:0.9, metalness:0.4, roughness:0.3,  trail:0xff6600, unlock:0 },
+    { name:'GALAXY', color:0xaa44ff, emissive:0x220066, emissiveI:0.7, metalness:0.8, roughness:0.1,  trail:0xcc88ff, unlock:0 },
+    { name:'GHOST',  color:0xffffff, emissive:0x224466, emissiveI:0.4, metalness:0.0, roughness:0.0,  trail:0xaaccff, unlock:0 },
+    { name:'GOLD',   color:0xffcc00, emissive:0x443300, emissiveI:0.6, metalness:1.0, roughness:0.05, trail:0xffee44, unlock:0 },
 ];
 let selectedSkin = 0;
+function isSkinUnlocked(i) { return highScore >= SKINS[i].unlock; }
 
 // ── Power-ups ─────────────────────────────────────────────────
 const POWERUP_TYPES = {
@@ -506,30 +685,42 @@ function buildSkinPicker() {
     if (!container) return;
     container.innerHTML = '';
     SKINS.forEach((skin, i) => {
-        const btn = document.createElement('div');
+        const unlocked = isSkinUnlocked(i);
         const hex = '#' + skin.color.toString(16).padStart(6,'0');
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:relative;display:inline-block;';
+
+        const btn = document.createElement('div');
         btn.style.cssText = `
-            width:42px; height:42px; border-radius:50%; cursor:pointer;
-            background:radial-gradient(circle at 35% 35%, ${hex}, #000);
+            width:42px; height:42px; border-radius:50%; cursor:${unlocked?'pointer':'not-allowed'};
+            background:radial-gradient(circle at 35% 35%, ${unlocked?hex:'#333'}, #000);
             border: 2px solid ${i===selectedSkin ? hex : 'rgba(255,255,255,0.15)'};
             box-shadow: ${i===selectedSkin ? `0 0 14px ${hex}, 0 0 28px ${hex}` : 'none'};
-            transition: all 0.15s;
+            transition: all 0.15s; filter:${unlocked?'none':'grayscale(1) brightness(0.4)'};
         `;
-        btn.title = skin.name;
-        btn.addEventListener('click', () => {
-            selectedSkin = i;
-            buildSkinPicker();   // re-render to update selection ring
-        });
-        container.appendChild(btn);
+        btn.title = unlocked ? skin.name : `${skin.name} — unlock at ${skin.unlock.toLocaleString()} pts`;
+
+        if (!unlocked) {
+            const lock = document.createElement('div');
+            lock.textContent = '🔒';
+            lock.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.9rem;pointer-events:none;';
+            wrapper.appendChild(lock);
+        }
+
+        if (unlocked) {
+            btn.addEventListener('click', () => { selectedSkin = i; buildSkinPicker(); });
+        }
+        wrapper.appendChild(btn);
+        container.appendChild(wrapper);
     });
 }
 
 // ── Physics / Tuning ─────────────────────────────────────────
 const GRAVITY       = -38;
 const JUMP_FORCE    = 19;
-const STRAFE_ACCEL  = 55;
-const STRAFE_FRIC   = 0.84;
-const MAX_STRAFE    = 14;
+const STRAFE_ACCEL  = 120;
+const STRAFE_FRIC   = 0.78;
+const MAX_STRAFE    = 22;
 const BALL_R        = 0.75;
 const BASE_SPEED    = 16;       // units / sec forward
 const MAX_SPEED_X   = 3.5;     // how much extra speed multiplier we can reach (total = 1 + 3.5 = 4.5)
@@ -608,13 +799,31 @@ function init() {
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
     });
-    window.addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='Space') e.preventDefault(); });
-    window.addEventListener('keyup',   e => { keys[e.code] = false; });
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if (e.code==='Space') e.preventDefault();
+        if (e.code==='Escape' && gameStarted && !gameOver) togglePause();
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
 
     document.getElementById('startBtn').addEventListener('click', startGame);
-    document.getElementById('restartBtn').addEventListener('click', restartGame);
+    document.getElementById('restartBtn').addEventListener('click', () => { _btnClick(); restartGame(); });
+    document.getElementById('resumeBtn').addEventListener('click', togglePause);
+    document.getElementById('mainMenuBtn').addEventListener('click', () => { _btnClick(); showMainMenu(); });
+    document.getElementById('shareImageBtn').addEventListener('click', () => { _btnClick(); downloadShareCard(); });
+    document.getElementById('shareCopyBtn').addEventListener('click', () => { _btnClick(); shareScore(); });
     document.getElementById('saveInitialsBtn').addEventListener('click', saveInitials);
     document.getElementById('initialsInput').addEventListener('keydown', e => { if (e.key==='Enter') saveInitials(); });
+    document.getElementById('initialsInput').addEventListener('focus', () => {
+        const inp = document.getElementById('initialsInput');
+        inp.style.borderColor = '#cc44ff';
+        inp.style.boxShadow = '0 0 24px rgba(180,0,255,0.6)';
+    });
+    document.getElementById('initialsInput').addEventListener('blur', () => {
+        const inp = document.getElementById('initialsInput');
+        inp.style.borderColor = 'rgba(180,0,255,0.55)';
+        inp.style.boxShadow = '0 0 14px rgba(180,0,255,0.3)';
+    });
 
     // ── Touch controls ────────────────────────────────────────
     const tc = document.getElementById('touchControls');
@@ -699,6 +908,8 @@ function generateChunk() {
 
     // Power-up (rare, ~12% chance, not in first 5 chunks)
     if (chunkCount > 5 && Math.random() > 0.88) addPowerUp((Math.random()-0.5)*4, 3.2, z-3);
+    // Boost pad (~15% chance after chunk 3)
+    if (chunkCount > 3 && Math.random() > 0.85) addBoostPad((Math.random()-0.5)*3, 0, z-4);
 
     lastChunkZ = z;
     chunkCount++;
@@ -740,7 +951,12 @@ function addObstacleSpike(x, z) {
     mesh.position.set(offX, 1.9, offZ);
     mesh.castShadow = true;
     scene.add(mesh);
-    obstacles.push({ mesh, box: new THREE.Box3(), type:'static' });
+    // Store cone-specific data for precise sphere-vs-cone collision
+    const coneBaseY = mesh.position.y - 1.4; // 1.9 - height/2
+    const coneHeight = 2.8;
+    const coneBaseR  = 0.5;
+    obstacles.push({ mesh, box: new THREE.Box3(), type:'cone',
+                     coneBaseY, coneHeight, coneBaseR });
 }
 
 function addObstacleMoving(x, z) {
@@ -792,6 +1008,25 @@ function addPowerUp(x, y, z) {
     powerUps.push({ mesh, type, baseY:y, collected:false });
 }
 
+function addBoostPad(x, y, z) {
+    // Flat glowing pad
+    const geo = new THREE.BoxGeometry(3.5, 0.15, 2);
+    const mat = new THREE.MeshStandardMaterial({
+        color:0x00ff88, emissive:0x00ff88, emissiveIntensity:1.2, metalness:0.5, roughness:0.2
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y + 0.28, z);
+    scene.add(mesh);
+    // Arrow indicator — thin box pointing forward
+    const arrowGeo = new THREE.ConeGeometry(0.4, 0.8, 3);
+    const arrowMat = new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.9 });
+    const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.set(x, y + 0.45, z - 0.3);
+    scene.add(arrow);
+    boostPads.push({ mesh, arrow, used:false });
+}
+
 function applySkin() {
     const s = SKINS[selectedSkin];
     ball.material.color.setHex(s.color);
@@ -800,6 +1035,8 @@ function applySkin() {
     ball.material.metalness  = s.metalness;
     ball.material.roughness  = s.roughness;
     ball.material.needsUpdate = true;
+    // Update ball point light to match skin color so the glow is correct
+    if (window._pL1) _pL1.color.setHex(s.color);
 }
 
 // =============================================================
@@ -891,13 +1128,20 @@ function cleanup() {
             powerUps.splice(i, 1);
         }
     }
+    for (let i = boostPads.length-1; i >= 0; i--) {
+        if (boostPads[i].mesh.position.z > cutoff) {
+            scene.remove(boostPads[i].mesh);
+            scene.remove(boostPads[i].arrow);
+            boostPads.splice(i, 1);
+        }
+    }
 }
 
 // =============================================================
 //  MAIN UPDATE LOOP
 // =============================================================
 function update(dt) {
-    if (!gameStarted || gameOver) return;
+    if (!gameStarted || gameOver || gamePaused) return;
 
     // ── Speed ramp ──────────────────────────────────────────
     speedTimer += dt;
@@ -949,6 +1193,7 @@ function update(dt) {
         if (ball.position.y >= p.mesh.position.y && ballVel.y <= 0.1) {
             // Land on top
             ball.position.y = platTop + BALL_R;
+            if (ballVel.y < -5) { ball.scale.set(1.35, 0.6, 1.35); }  // squish on hard landing
             ballVel.y = 0;
             onGround = true;
             jumpsUsed = 0;   // reset double-jump on landing
@@ -966,6 +1211,7 @@ function update(dt) {
             jumpsUsed = 1;
             jumpConsumed = true;
             onGround = false;
+            ball.scale.set(0.7, 1.4, 0.7);   // stretch on jump
             burstParticles(ball.position.clone(), 0x00ffff, 6);
             sfx.jump();
         } else if (jumpsUsed === 1) {
@@ -973,6 +1219,7 @@ function update(dt) {
             ballVel.y = JUMP_FORCE * 0.85;
             jumpsUsed = 2;
             jumpConsumed = true;
+            ball.scale.set(0.75, 1.3, 0.75);  // stretch on double jump
             burstParticles(ball.position.clone(), 0xff00ff, 10);
             sfx.doubleJump();
         }
@@ -986,8 +1233,20 @@ function update(dt) {
                 if (o.mesh.position.x > o.endX) o.dir = -1;
                 if (o.mesh.position.x < o.startX) o.dir = 1;
             }
-            o.box.setFromObject(o.mesh);
-            if (bBox.intersectsBox(o.box)) hitObstacle();
+            if (o.type === 'cone') {
+                // Sphere-vs-cone: compare ball sphere against cone surface at ball's Y
+                const relY = ball.position.y - o.coneBaseY; // height from cone base
+                if (relY >= -BALL_R && relY <= o.coneHeight + BALL_R) {
+                    const t = Math.max(0, Math.min(relY / o.coneHeight, 1));
+                    const coneR = o.coneBaseR * (1 - t); // radius narrows toward tip
+                    const dx = ball.position.x - o.mesh.position.x;
+                    const dz = ball.position.z - o.mesh.position.z;
+                    if (Math.sqrt(dx*dx + dz*dz) < BALL_R + coneR) hitObstacle();
+                }
+            } else {
+                o.box.setFromObject(o.mesh);
+                if (bBox.intersectsBox(o.box)) hitObstacle();
+            }
         }
     } else {
         // Still update moving obstacles even during invincibility
@@ -1067,6 +1326,30 @@ function update(dt) {
 
     // ── Fall ────────────────────────────────────────────────
     if (ball.position.y < -6) hitObstacle();
+
+    // ── Boost pads ──────────────────────────────────────────
+    for (const bp of boostPads) {
+        if (bp.used) continue;
+        bp.mesh.material.emissiveIntensity = 0.8 + Math.sin(t * 6) * 0.4;
+        if (ball.position.distanceTo(bp.mesh.position) < 2.2) {
+            bp.used = true;
+            bp.mesh.material.emissive.setHex(0x004422);
+            bp.mesh.material.emissiveIntensity = 0.1;
+            ballVel.z -= 38;   // forward rocket burst
+            ballVel.y  = 4;    // slight pop up
+            burstParticles(ball.position.clone(), 0x00ff88, 20);
+            _sweep(200, 1200, 'sine', 0.3, 0.3);
+        }
+    }
+
+    // ── Ball squish/stretch ─────────────────────────────────
+    ball.scale.x += (1 - ball.scale.x) * Math.min(dt * 12, 1);
+    ball.scale.y += (1 - ball.scale.y) * Math.min(dt * 12, 1);
+    ball.scale.z += (1 - ball.scale.z) * Math.min(dt * 12, 1);
+
+    // ── Speed lines ─────────────────────────────────────────
+    const lineOpacity = Math.max(0, Math.min(1, (speedMult - 2.2) / 1.5));
+    document.getElementById('speedLines').style.opacity = lineOpacity;
 
     // ── Neon lights track ball ──────────────────────────────
     _pL1.position.set(ball.position.x - 2, ball.position.y + 3, ball.position.z);
@@ -1160,6 +1443,179 @@ function hitObstacle() {
     else ballVel.set(0, 8, 0);  // pop up after hit
 }
 
+// ── Button click sound ───────────────────────────────────────
+function _btnClick() { _tone(440, 'sine', 0.05, 0.12); }
+
+// =============================================================
+//  GAME OVER 2D PARTICLES
+// =============================================================
+let _goRaf = null;
+function startGoParticles() {
+    const canvas = document.getElementById('goCanvas');
+    if (!canvas) return;
+    canvas.width  = innerWidth;
+    canvas.height = innerHeight;
+    const ctx = canvas.getContext('2d');
+    const cols = ['#00ffff','#ff00ff','#00ff88','#ffff00','#ff4488'];
+    const pts  = Array.from({length:55}, () => ({
+        x:  Math.random() * canvas.width,
+        y:  Math.random() * canvas.height,
+        vx: (Math.random()-0.5) * 0.6,
+        vy: -(Math.random() * 0.4 + 0.1),
+        r:  Math.random() * 2.5 + 0.8,
+        col: cols[Math.floor(Math.random()*cols.length)],
+        a:  Math.random() * 0.5 + 0.15,
+    }));
+    function frame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        pts.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            if (p.y < -6)           { p.y = canvas.height + 6; p.x = Math.random()*canvas.width; }
+            if (p.x < 0)            p.x = canvas.width;
+            if (p.x > canvas.width) p.x = 0;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+            ctx.shadowColor = p.col; ctx.shadowBlur = 10;
+            ctx.globalAlpha = p.a;
+            ctx.fillStyle = p.col;
+            ctx.fill();
+            ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+        });
+        _goRaf = requestAnimationFrame(frame);
+    }
+    frame();
+}
+function stopGoParticles() {
+    if (_goRaf) { cancelAnimationFrame(_goRaf); _goRaf = null; }
+    const canvas = document.getElementById('goCanvas');
+    if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// =============================================================
+//  SHARE CARD  –  draws a styled canvas image for download
+// =============================================================
+function generateShareCard(nickname, scoreVal, rankName, rankColor) {
+    const W = 700, H = 380;
+    const cv  = document.createElement('canvas');
+    cv.width  = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#00000f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = 'rgba(0,255,255,0.05)'; ctx.lineWidth = 1;
+    for (let x=0; x<W; x+=28) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y=0; y<H; y+=28) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    // Border glow
+    ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 2;
+    ctx.shadowColor = '#00ffff'; ctx.shadowBlur  = 20;
+    ctx.strokeRect(8, 8, W-16, H-16);
+    ctx.shadowBlur = 0;
+
+    // Corner accents
+    const ac = (x,y,dx,dy) => {
+        ctx.beginPath(); ctx.moveTo(x,y+dy*24); ctx.lineTo(x,y); ctx.lineTo(x+dx*24,y);
+        ctx.strokeStyle='#00ffff'; ctx.lineWidth=3; ctx.shadowColor='#00ffff'; ctx.shadowBlur=12; ctx.stroke(); ctx.shadowBlur=0;
+    };
+    ac(8,8,1,1); ac(W-8,8,-1,1); ac(8,H-8,1,-1); ac(W-8,H-8,-1,-1);
+
+    // Title
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillStyle = '#00ffff'; ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 16;
+    ctx.fillText('NEON RUNNER', W/2, 52);
+    ctx.shadowBlur = 0;
+
+    // Divider
+    const grad = ctx.createLinearGradient(80,0,W-80,0);
+    grad.addColorStop(0,'transparent'); grad.addColorStop(0.5,'#00ffff'); grad.addColorStop(1,'transparent');
+    ctx.strokeStyle = grad; ctx.lineWidth = 1; ctx.shadowBlur = 8; ctx.shadowColor = '#00ffff';
+    ctx.beginPath(); ctx.moveTo(80,68); ctx.lineTo(W-80,68); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Score
+    ctx.font = 'bold 88px monospace';
+    ctx.fillStyle = '#ffffff'; ctx.shadowColor = '#00ffff'; ctx.shadowBlur = 40;
+    ctx.fillText(scoreVal.toLocaleString(), W/2, 180);
+    ctx.shadowBlur = 0;
+
+    // Rank
+    ctx.font = 'bold 28px monospace';
+    ctx.fillStyle = rankColor; ctx.shadowColor = rankColor; ctx.shadowBlur = 20;
+    ctx.fillText(rankName, W/2, 224);
+    ctx.shadowBlur = 0;
+
+    // Nickname
+    if (nickname) {
+        ctx.font = '18px monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.shadowBlur = 0;
+        ctx.fillText(nickname.toUpperCase(), W/2, 262);
+    }
+
+    // Divider 2
+    ctx.strokeStyle = grad; ctx.lineWidth = 1; ctx.shadowBlur = 6; ctx.shadowColor = '#ff00ff';
+    ctx.beginPath(); ctx.moveTo(80,284); ctx.lineTo(W-80,284); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // CTA
+    ctx.font = 'bold 16px monospace';
+    ctx.fillStyle = '#ff00ff'; ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 14;
+    ctx.fillText('Can you beat my score?  ⚡  neon-runner.netlify.app', W/2, 330);
+    ctx.shadowBlur = 0;
+
+    return cv;
+}
+
+function downloadShareCard() {
+    const rank     = RANKS[currentRankIdx];
+    const nickname = localStorage.getItem('neonRunnerNick') || '';
+    const cv       = generateShareCard(nickname, score, rank.name, rank.color);
+    const a        = document.createElement('a');
+    a.download     = 'neon-runner-score.png';
+    a.href         = cv.toDataURL('image/png');
+    a.click();
+}
+
+// =============================================================
+//  MAIN MENU
+// =============================================================
+function showMainMenu() {
+    stopGoParticles();
+    gameOver = false; gameStarted = false;
+    document.getElementById('gameOverScreen').style.display = 'none';
+    document.getElementById('startScreen').classList.remove('hidden');
+    buildSkinPicker();
+    renderLeaderboard();
+    refreshHighScoreUI();
+}
+
+function togglePause() {
+    gamePaused = !gamePaused;
+    document.getElementById('pauseScreen').style.display = gamePaused ? 'flex' : 'none';
+    document.getElementById('pauseBtn').textContent = gamePaused ? '▶ RESUME' : '⏸ PAUSE';
+    if (gamePaused) {
+        if (_audioCtx) _audioCtx.suspend();
+        stopMusic();
+    } else {
+        if (_audioCtx) _audioCtx.resume();
+        startMusic();
+        clock.getDelta(); // discard accumulated delta while paused
+    }
+}
+
+function shareScore() {
+    const rank = RANKS[currentRankIdx].name;
+    const text = `I scored ${score.toLocaleString()} as ${rank} on Neon Runner! 🎮⚡`;
+    navigator.clipboard.writeText(text).then(() => {
+        const msg = document.getElementById('copiedMsg');
+        msg.style.opacity = '1';
+        setTimeout(() => msg.style.opacity = '0', 2000);
+    });
+}
+
 function startGame() {
     gameStarted = true;
     applySkin();
@@ -1169,9 +1625,17 @@ function startGame() {
 
 function saveInitials() {
     const val = document.getElementById('initialsInput').value.trim() || '???';
+    localStorage.setItem('neonRunnerNick', val);
     addToLeaderboard(val, score);
-    document.getElementById('initialsBox').style.display = 'none';
     renderLeaderboard();
+    // Animate button → show checkmark
+    const btn = document.getElementById('saveInitialsBtn');
+    btn.classList.add('btn-bounce', 'submit-glow');
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    setTimeout(() => btn.classList.remove('btn-bounce', 'submit-glow'), 500);
+    document.getElementById('savedConfirm').style.display = 'block';
+    _tone(660,'sine',0.1,0.2); setTimeout(()=>_tone(880,'sine',0.1,0.18),100);
 }
 
 function endGame() {
@@ -1179,10 +1643,23 @@ function endGame() {
     stopMusic();
     sfx.gameOver();
     const newBest = score > highScore;
-    if (newBest) { highScore = score; localStorage.setItem('neonRunnerHS', highScore); }
-    document.getElementById('finalScore').textContent     = score;
-    document.getElementById('finalHighScore').textContent = highScore;
-    document.getElementById('newBestMsg').style.display   = newBest ? 'block' : 'none';
+    if (newBest) { highScore = score; localStorage.setItem('neonRunnerHS', highScore); buildSkinPicker(); }
+
+    // Populate score & rank
+    const rank = RANKS[currentRankIdx];
+    document.getElementById('finalScore').textContent      = score.toLocaleString();
+    document.getElementById('finalHighScore').textContent  = highScore.toLocaleString();
+    document.getElementById('newBestMsg').style.display    = newBest ? 'block' : 'none';
+    const rb = document.getElementById('goRankBadge');
+    rb.textContent   = rank.name;
+    rb.style.color   = rank.color;
+    rb.style.textShadow = `0 0 14px ${rank.color}, 0 0 30px ${rank.color}`;
+
+    // Reset submit button state
+    const btn = document.getElementById('saveInitialsBtn');
+    btn.disabled = false; btn.style.opacity = '1';
+    document.getElementById('savedConfirm').style.display = 'none';
+    document.getElementById('initialsInput').value = localStorage.getItem('neonRunnerNick') || '';
 
     // Show initials entry if score qualifies for top 5
     const qualifies = isTopFive(score);
@@ -1194,12 +1671,17 @@ function endGame() {
     }
 
     renderLeaderboard();
-    document.getElementById('gameOverScreen').style.display = 'flex';
+    const goScreen = document.getElementById('gameOverScreen');
+    goScreen.style.display = 'flex';
+    goScreen.style.flexDirection = 'column';
+    goScreen.style.animation = 'none';
+    requestAnimationFrame(() => { goScreen.style.animation = 'goFadeIn 0.4s ease both'; });
+    startGoParticles();
 }
 
 function restartGame() {
     // Clear scene objects
-    [...platforms, ...obstacles, ...collectibles, ...particles, ...powerUps].forEach(obj => {
+    [...platforms, ...obstacles, ...collectibles, ...particles, ...powerUps, ...boostPads].forEach(obj => {
         const m = obj.mesh || obj.m;
         scene.remove(m);
         if (obj.edgeMesh) scene.remove(obj.edgeMesh);
@@ -1218,6 +1700,10 @@ function restartGame() {
     const badge = document.getElementById('rankBadge');
     badge.textContent = 'ROOKIE'; badge.style.color = '#aaaaaa'; badge.style.textShadow = '';
     powerUps = []; activePowerUp = null; powerUpTimer = 0; shieldActive = false;
+    boostPads = []; gamePaused = false;
+    ball.scale.set(1, 1, 1);
+    document.getElementById('pauseScreen').style.display = 'none';
+    document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
     document.getElementById('powerUpHUD').style.display = 'none';
     refreshComboUI();
     applySkin();
@@ -1229,6 +1715,7 @@ function restartGame() {
 
     for (let i = 0; i < 22; i++) generateChunk();
 
+    stopGoParticles();
     document.getElementById('gameOverScreen').style.display = 'none';
     refreshAllUI();
 }

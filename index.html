@@ -153,6 +153,25 @@
     </div>
 </div>
 
+<!-- ── SPEED FLASH + POPUP ───────────────────────── -->
+<div id="speedFlash" style="position:fixed;inset:0;pointer-events:none;z-index:15;opacity:0;
+     background:radial-gradient(ellipse at center, transparent 20%, rgba(255,0,255,0.45) 100%);
+     transition:opacity 0.08s ease-out;"></div>
+
+<div id="speedPopup" style="position:fixed;top:38%;left:50%;transform:translateX(-50%) translateY(0px);
+     z-index:16;pointer-events:none;opacity:0;text-align:center;transition:opacity 0.12s, transform 0.6s;">
+    <div class="neon-pink" style="font-size:1.8rem;font-weight:900;letter-spacing:5px;white-space:nowrap;">⚡ SPEED UP ⚡</div>
+    <div class="neon-cyan" style="font-size:1.2rem;font-weight:900;letter-spacing:3px;margin-top:4px;" id="speedPopupVal">×1.0</div>
+</div>
+
+<!-- ── COMBO DISPLAY ─────────────────────────────── -->
+<div id="comboDisplay" style="position:fixed;top:90px;left:50%;transform:translateX(-50%);
+     z-index:10;text-align:center;pointer-events:none;display:none;">
+    <div style="color:rgba(255,255,0,0.55);font-size:0.6rem;letter-spacing:3px;margin-bottom:1px;">COMBO</div>
+    <div style="color:#ffff00;font-size:2.6rem;font-weight:900;letter-spacing:2px;
+         text-shadow:0 0 12px #ffff00,0 0 28px #ffff00;">×<span id="comboNum">2</span></div>
+</div>
+
 <!-- ── SCRIPT ───────────────────────────────────── -->
 <script>
 // =============================================================
@@ -170,8 +189,173 @@ let speedMult = 1.0, speedTimer = 0;
 let lastChunkZ = 10;   // world-Z of the most-recently-generated chunk (runner moves in -Z)
 let chunkCount = 0;
 let invTimer = 0;      // invincibility frames after hit
+let jumpsUsed = 0;     // 0 = can jump, 1 = used first jump, 2 = double-jump spent
 let jumpConsumed = false;
+let comboCount = 0, comboTimer = 0;   // gem combo streak
 let highScore = +localStorage.getItem('neonRunnerHS') || 0;
+
+// =============================================================
+//  SOUND EFFECTS  –  Pure Web Audio API, no files needed
+// =============================================================
+let _audioCtx = null;
+function _ac() {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return _audioCtx;
+}
+function _tone(freq, type, dur, vol, delay = 0) {
+    const ctx = _ac();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(vol, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + dur);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + dur + 0.02);
+}
+function _sweep(f0, f1, type, dur, vol, delay = 0) {
+    const ctx = _ac();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, ctx.currentTime + delay);
+    osc.frequency.exponentialRampToValueAtTime(f1, ctx.currentTime + delay + dur);
+    gain.gain.setValueAtTime(vol, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + dur);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + dur + 0.02);
+}
+function _noise(dur, vol) {
+    const ctx  = _ac();
+    const n    = Math.ceil(ctx.sampleRate * dur);
+    const buf  = ctx.createBuffer(1, n, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/n, 1.5);
+    const src  = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    src.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    src.start(); src.stop(ctx.currentTime + dur + 0.02);
+}
+const sfx = {
+    jump()       { _sweep(280, 560, 'sine', 0.12, 0.22); },
+    doubleJump() { _sweep(480, 960, 'sine', 0.11, 0.18); _tone(960, 'sine', 0.08, 0.12, 0.1); },
+    collect()    { [523, 659, 784].forEach((f,i) => _tone(f, 'sine', 0.13, 0.18, i*0.07)); },
+    hit()        { _noise(0.18, 0.5); _sweep(180, 60, 'sawtooth', 0.22, 0.28); },
+    speedUp()    { _sweep(300, 900, 'sine', 0.35, 0.18); _tone(900, 'sine', 0.15, 0.12, 0.3); },
+    gameOver()   { [380, 300, 220, 150].forEach((f,i) => _tone(f, 'square', 0.22, 0.14, i*0.22)); },
+};
+
+// =============================================================
+//  BACKGROUND MUSIC  –  Generative drum machine + bass + pad
+//  Pure Web Audio, no files. Cyberpunk / neon feel.
+// =============================================================
+const MUSIC_BPM  = 138;
+const MUSIC_STEP = 60 / MUSIC_BPM / 4;   // 16th-note duration in seconds
+
+// 16-step patterns (one bar of 4/4 at 16th-note resolution)
+const _kickPat  = [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0];
+const _snarePat = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+const _hatOn    = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];   // 8th-note hats
+const _hatOff   = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];   // off-8th (quieter)
+// Bass line: A2=110, C3=131, D3=147, E3=165, G2=98  (0 = rest)
+const _bassPat  = [110,0,0,0, 110,0,131,0, 165,0,0,0, 147,0,165,0];
+// Pad: Am chord one octave up from bass notes → A3=220, C4=262, E4=330
+const _padFreqs = [220, 262, 330];
+
+let _musicOn = false, _musicStep = 0, _musicNextT = 0, _musicTid = null;
+
+function _mkick(t) {
+    const ctx = _ac(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(35, t + 0.14);
+    g.gain.setValueAtTime(0.75, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    o.start(t); o.stop(t + 0.3);
+}
+function _msnare(t) {
+    const ctx = _ac();
+    const n = ctx.sampleRate * 0.18 | 0;
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const g = ctx.createGain();
+    src.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.24, t); g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
+    src.start(t); src.stop(t+0.19);
+    // Tone body
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.connect(og); og.connect(ctx.destination);
+    o.type = 'triangle'; o.frequency.value = 195;
+    og.gain.setValueAtTime(0.12, t); og.gain.exponentialRampToValueAtTime(0.0001, t+0.06);
+    o.start(t); o.stop(t+0.07);
+}
+function _mhat(t, vol) {
+    const ctx = _ac();
+    const n = ctx.sampleRate * 0.04 | 0;
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random()*2-1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 9000;
+    const g = ctx.createGain();
+    src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t+0.04);
+    src.start(t); src.stop(t+0.05);
+}
+function _mbass(freq, t) {
+    const ctx = _ac(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sawtooth'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + MUSIC_STEP*3.8);
+    o.start(t); o.stop(t + MUSIC_STEP*4);
+}
+function _mpad(freq, t, dur) {
+    const ctx = _ac(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.04, t + dur*0.2);
+    g.gain.setValueAtTime(0.04, t + dur*0.75);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    o.start(t); o.stop(t + dur + 0.05);
+}
+
+function _musicTick() {
+    if (!_musicOn) return;
+    const ctx = _ac();
+    while (_musicNextT < ctx.currentTime + 0.15) {
+        const s = _musicStep % 16;
+        const t = _musicNextT;
+        if (_kickPat[s])  _mkick(t);
+        if (_snarePat[s]) _msnare(t);
+        if (_hatOn[s])    _mhat(t, 0.11);
+        if (_hatOff[s])   _mhat(t, 0.05);
+        if (_bassPat[s])  _mbass(_bassPat[s], t);
+        if (s === 0)      _padFreqs.forEach(f => _mpad(f, t, MUSIC_STEP*16));
+        _musicNextT += MUSIC_STEP;
+        _musicStep++;
+    }
+    _musicTid = setTimeout(_musicTick, 40);
+}
+function startMusic() {
+    if (_musicOn) return;
+    _musicOn = true; _musicStep = 0;
+    _musicNextT = _ac().currentTime + 0.1;
+    _musicTick();
+}
+function stopMusic() {
+    _musicOn = false;
+    if (_musicTid) { clearTimeout(_musicTid); _musicTid = null; }
+}
 
 // ── Physics / Tuning ─────────────────────────────────────────
 const GRAVITY       = -38;
@@ -493,6 +677,8 @@ function update(dt) {
         speedTimer = 0;
         speedMult = Math.min(speedMult + SPEED_STEP, 1 + MAX_SPEED_X);
         refreshSpeedUI();
+        sfx.speedUp();
+        flashSpeed();
     }
 
     const fwdSpeed = BASE_SPEED * speedMult;
@@ -501,9 +687,8 @@ function update(dt) {
     if (keys['KeyA'] || keys['ArrowLeft'])  ballVel.x -= STRAFE_ACCEL * dt;
     if (keys['KeyD'] || keys['ArrowRight']) ballVel.x += STRAFE_ACCEL * dt;
 
-    // Jump — only once per ground contact
     const wantJump = keys['Space'] || keys['KeyW'] || keys['ArrowUp'];
-    if (!wantJump) jumpConsumed = false;
+    if (!wantJump) jumpConsumed = false;   // key released → ready for next press
 
     // ── Physics ─────────────────────────────────────────────
     ballVel.y += GRAVITY * dt;
@@ -538,16 +723,30 @@ function update(dt) {
             ball.position.y = platTop + BALL_R;
             ballVel.y = 0;
             onGround = true;
-
-            if (wantJump && !jumpConsumed) {
-                ballVel.y = JUMP_FORCE;
-                jumpConsumed = true;
-                onGround = false;
-                burstParticles(ball.position.clone(), 0x00ffff, 6);
-            }
+            jumpsUsed = 0;   // reset double-jump on landing
         } else {
             // Side bounce
             ballVel.x *= -0.25;
+        }
+    }
+
+    // ── Jump (ground + double-jump) ─────────────────────────
+    if (wantJump && !jumpConsumed) {
+        if (onGround) {
+            // Normal jump from ground
+            ballVel.y = JUMP_FORCE;
+            jumpsUsed = 1;
+            jumpConsumed = true;
+            onGround = false;
+            burstParticles(ball.position.clone(), 0x00ffff, 6);
+            sfx.jump();
+        } else if (jumpsUsed === 1) {
+            // Double jump — mid-air, slightly weaker
+            ballVel.y = JUMP_FORCE * 0.85;
+            jumpsUsed = 2;
+            jumpConsumed = true;
+            burstParticles(ball.position.clone(), 0xff00ff, 10);
+            sfx.doubleJump();
         }
     }
 
@@ -585,10 +784,21 @@ function update(dt) {
         if (ball.position.distanceTo(c.mesh.position) < 1.2) {
             c.collected = true;
             c.mesh.visible = false;
-            _bonusScore += Math.round(60 * speedMult);
+            comboCount++;
+            comboTimer = 2.2;
+            const comboBonus = Math.max(1, comboCount);
+            _bonusScore += Math.round(60 * speedMult * comboBonus);
             burstParticles(c.mesh.position.clone(), c.col, 14);
+            sfx.collect();
+            refreshComboUI();
             refreshScoreUI();
         }
+    }
+
+    // ── Combo timer ─────────────────────────────────────────
+    if (comboTimer > 0) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) { comboCount = 0; refreshComboUI(); }
     }
 
     // ── Continuous score (time alive × speed) ──────────────
@@ -631,7 +841,9 @@ function hitObstacle() {
     if (invTimer > 0) return;
     lives--;
     invTimer = 2.2;
+    jumpsUsed = 0;
     burstParticles(ball.position.clone(), 0xff0044, 22);
+    sfx.hit();
     refreshLivesUI();
     if (lives <= 0) endGame();
     else ballVel.set(0, 8, 0);  // pop up after hit
@@ -640,10 +852,13 @@ function hitObstacle() {
 function startGame() {
     gameStarted = true;
     document.getElementById('startScreen').classList.add('hidden');
+    startMusic();
 }
 
 function endGame() {
     gameOver = true;
+    stopMusic();
+    sfx.gameOver();
     const newBest = score > highScore;
     if (newBest) { highScore = score; localStorage.setItem('neonRunnerHS', highScore); }
     document.getElementById('finalScore').textContent    = score;
@@ -665,9 +880,12 @@ function restartGame() {
     score = 0; lives = 3; _scoreAccum = 0; _bonusScore = 0;
     gameOver = false; gameStarted = true;
     speedMult = 1.0; speedTimer = 0;
-    invTimer = 0; jumpConsumed = false;
+    invTimer = 0; jumpConsumed = false; jumpsUsed = 0;
+    comboCount = 0; comboTimer = 0;
     chunkCount = 0; lastChunkZ = 10;
     trailTimer = 0;
+    refreshComboUI();
+    stopMusic(); startMusic();
 
     ball.position.set(0, 3, 0);
     ballVel.set(0, 0, 0);
@@ -702,6 +920,31 @@ function refreshAllUI() {
     refreshHighScoreUI();
     refreshLivesUI();
     refreshSpeedUI();
+}
+function flashSpeed() {
+    const fl = document.getElementById('speedFlash');
+    fl.style.opacity = '1';
+    setTimeout(() => fl.style.opacity = '0', 130);
+
+    const pop = document.getElementById('speedPopup');
+    document.getElementById('speedPopupVal').textContent = '×' + speedMult.toFixed(1);
+    pop.style.transition = 'opacity 0.12s, transform 0.12s';
+    pop.style.opacity = '1';
+    pop.style.transform = 'translateX(-50%) translateY(0px)';
+    setTimeout(() => {
+        pop.style.transition = 'opacity 0.5s, transform 0.6s';
+        pop.style.opacity = '0';
+        pop.style.transform = 'translateX(-50%) translateY(-40px)';
+    }, 900);
+}
+function refreshComboUI() {
+    const el = document.getElementById('comboDisplay');
+    if (comboCount >= 2) {
+        document.getElementById('comboNum').textContent = comboCount;
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
 }
 
 // =============================================================

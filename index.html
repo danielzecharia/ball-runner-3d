@@ -88,7 +88,8 @@
     <div class="panel">
         <div class="neon-cyan text-3xl font-black tracking-widest" id="score">0</div>
         <div style="color:rgba(0,255,255,0.4); font-size:0.65rem; letter-spacing:2px;">SCORE</div>
-        <div style="color:#ffff00; font-size:0.7rem; margin-top:4px;">
+        <div id="rankBadge" style="font-size:0.65rem; font-weight:900; letter-spacing:2px; margin-top:3px; color:#aaaaaa;">ROOKIE</div>
+        <div style="color:#ffff00; font-size:0.7rem; margin-top:2px;">
             BEST&nbsp;<span id="highScore">0</span>
         </div>
     </div>
@@ -114,20 +115,39 @@
 
 <!-- ── START SCREEN ─────────────────────────────── -->
 <div id="startScreen" class="fixed inset-0 flex items-center justify-center z-20" style="background:rgba(0,0,10,0.92)">
-    <div class="text-center">
-        <div style="line-height:1; margin-bottom:32px;">
-            <div class="neon-cyan"  style="font-size:5rem; font-weight:900; letter-spacing:8px;">NEON</div>
-            <div class="neon-pink"  style="font-size:5rem; font-weight:900; letter-spacing:8px;">RUNNER</div>
+    <div style="display:flex; gap:48px; align-items:flex-start; justify-content:center; flex-wrap:wrap;">
+
+        <!-- Left: title + start -->
+        <div class="text-center">
+            <div style="line-height:1; margin-bottom:24px;">
+                <div class="neon-cyan"  style="font-size:4.5rem; font-weight:900; letter-spacing:8px;">NEON</div>
+                <div class="neon-pink"  style="font-size:4.5rem; font-weight:900; letter-spacing:8px;">RUNNER</div>
+            </div>
+            <div style="color:rgba(255,255,255,0.4); font-size:0.8rem; letter-spacing:2px; margin-bottom:6px;">
+                ROLL FOREVER · DON'T FALL · GET FAST
+            </div>
+            <div style="color:#ffff00; font-size:0.75rem; margin-bottom:18px;">
+                BEST&nbsp;<span id="startHighScore" style="color:#fff;">0</span>
+            </div>
+
+            <!-- Skin picker -->
+            <div style="color:rgba(255,255,255,0.35); font-size:0.6rem; letter-spacing:3px; margin-bottom:8px;">CHOOSE YOUR BALL</div>
+            <div id="skinPicker" style="display:flex; gap:10px; justify-content:center; margin-bottom:20px;">
+                <!-- filled by JS -->
+            </div>
+
+            <button class="neon-btn" id="startBtn">START</button>
+            <div style="color:rgba(255,255,255,0.2); font-size:0.65rem; margin-top:16px; line-height:2; letter-spacing:1px;">
+                SPACE / W / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; A/D / ←/→ &nbsp;·&nbsp; STRAFE
+            </div>
         </div>
-        <div style="color:rgba(255,255,255,0.4); font-size:0.85rem; letter-spacing:2px; margin-bottom:6px;">
-            ROLL FOREVER · DON'T FALL · GET FAST
-        </div>
-        <div style="color:#ffff00; font-size:0.8rem; margin-bottom:28px;">
-            BEST&nbsp;<span id="startHighScore" style="color:#fff;">0</span>
-        </div>
-        <button class="neon-btn" id="startBtn">START</button>
-        <div style="color:rgba(255,255,255,0.2); font-size:0.7rem; margin-top:20px; line-height:2; letter-spacing:1px;">
-            SPACE / W / ↑ &nbsp;·&nbsp; JUMP &nbsp;&nbsp; A/D / ←/→ &nbsp;·&nbsp; STRAFE
+
+        <!-- Right: leaderboard -->
+        <div class="panel" style="min-width:200px; margin-top:8px;">
+            <div style="color:rgba(0,255,255,0.5); font-size:0.6rem; letter-spacing:3px; margin-bottom:10px; text-align:center;">🏆 TOP SCORES</div>
+            <div id="leaderboardList" style="font-family:'Courier New',monospace;">
+                <!-- filled by JS -->
+            </div>
         </div>
     </div>
 </div>
@@ -135,22 +155,61 @@
 <!-- ── GAME OVER SCREEN ─────────────────────────── -->
 <div id="gameOverScreen" class="fixed inset-0 items-center justify-center z-20" style="display:none; background:rgba(0,0,10,0.88)">
     <div class="text-center">
-        <div class="neon-red" style="font-size:4.5rem; font-weight:900; letter-spacing:6px; line-height:1.1; margin-bottom:24px;">
+        <div class="neon-red" style="font-size:4.5rem; font-weight:900; letter-spacing:6px; line-height:1.1; margin-bottom:20px;">
             GAME<br>OVER
         </div>
-        <div class="panel" style="display:inline-block; min-width:220px; margin-bottom:24px;">
+        <div class="panel" style="display:inline-block; min-width:220px; margin-bottom:16px;">
             <div class="neon-cyan text-4xl font-black" id="finalScore">0</div>
             <div style="color:rgba(0,255,255,0.35); font-size:0.65rem; letter-spacing:2px; margin-bottom:8px;">SCORE</div>
-            <div id="newBestMsg" class="neon-green" style="font-size:0.95rem; font-weight:900; letter-spacing:2px; display:none; margin-bottom:6px;">
-                ★ NEW BEST ★
-            </div>
+            <div id="newBestMsg" class="neon-green" style="font-size:0.95rem; font-weight:900; letter-spacing:2px; display:none; margin-bottom:6px;">★ NEW BEST ★</div>
             <div style="color:rgba(255,255,255,0.35); font-size:0.75rem;">
                 BEST&nbsp;<span id="finalHighScore">0</span>
             </div>
         </div>
-        <br>
-        <button class="neon-btn" id="restartBtn">RETRY</button>
+
+        <!-- Initials entry (shown when score qualifies for top 5) -->
+        <div id="initialsBox" style="display:none; margin-bottom:16px;">
+            <div style="color:#ffff00; font-size:0.7rem; letter-spacing:3px; margin-bottom:8px;">ENTER YOUR NICKNAME</div>
+            <input id="initialsInput" maxlength="20"
+                style="background:transparent; border:2px solid #00ffff; color:#00ffff;
+                       font-family:'Courier New',monospace; font-size:2rem; font-weight:900;
+                       text-align:center; width:200px; letter-spacing:3px; outline:none;
+                       text-transform:uppercase; border-radius:4px; padding:4px 8px;
+                       box-shadow:0 0 12px rgba(0,255,255,0.4);">
+            <br>
+            <button class="neon-btn" id="saveInitialsBtn" style="margin-top:10px; font-size:1rem; padding:8px 28px;">SAVE</button>
+        </div>
+
+        <div>
+            <button class="neon-btn" id="restartBtn">RETRY</button>
+        </div>
     </div>
+</div>
+
+<!-- ── RANK UP POPUP ─────────────────────────────── -->
+<div id="rankPopup" style="position:fixed;top:30%;left:50%;transform:translateX(-50%) scale(1);
+     z-index:16;pointer-events:none;opacity:0;text-align:center;
+     transition:opacity 0.2s, transform 0.2s; white-space:nowrap;">
+    <div style="font-size:0.65rem;letter-spacing:4px;color:rgba(255,255,255,0.5);margin-bottom:4px;">RANK UP</div>
+    <div id="rankPopupName" style="font-size:3rem;font-weight:900;letter-spacing:6px;"></div>
+</div>
+
+<!-- ── TOUCH CONTROLS ────────────────────────────── -->
+<div id="touchControls" style="position:fixed;bottom:0;left:0;right:0;z-index:10;
+     display:none;justify-content:space-between;align-items:flex-end;padding:16px;gap:12px;">
+    <button id="touchLeft" style="width:80px;height:80px;border-radius:50%;
+        background:rgba(0,255,255,0.08);border:2px solid rgba(0,255,255,0.35);
+        color:#00ffff;font-size:1.8rem;cursor:pointer;user-select:none;
+        box-shadow:0 0 16px rgba(0,255,255,0.2);-webkit-tap-highlight-color:transparent;">◀</button>
+    <button id="touchJump" style="flex:1;max-width:180px;height:64px;border-radius:32px;
+        background:rgba(0,255,255,0.1);border:2px solid rgba(0,255,255,0.4);
+        color:#00ffff;font-size:1rem;font-weight:900;letter-spacing:3px;cursor:pointer;
+        user-select:none;box-shadow:0 0 20px rgba(0,255,255,0.25);
+        font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent;">JUMP</button>
+    <button id="touchRight" style="width:80px;height:80px;border-radius:50%;
+        background:rgba(0,255,255,0.08);border:2px solid rgba(0,255,255,0.35);
+        color:#00ffff;font-size:1.8rem;cursor:pointer;user-select:none;
+        box-shadow:0 0 16px rgba(0,255,255,0.2);-webkit-tap-highlight-color:transparent;">▶</button>
 </div>
 
 <!-- ── SPEED FLASH + POPUP ───────────────────────── -->
@@ -162,6 +221,15 @@
      z-index:16;pointer-events:none;opacity:0;text-align:center;transition:opacity 0.12s, transform 0.6s;">
     <div class="neon-pink" style="font-size:1.8rem;font-weight:900;letter-spacing:5px;white-space:nowrap;">⚡ SPEED UP ⚡</div>
     <div class="neon-cyan" style="font-size:1.2rem;font-weight:900;letter-spacing:3px;margin-top:4px;" id="speedPopupVal">×1.0</div>
+</div>
+
+<!-- ── POWER-UP HUD ──────────────────────────────── -->
+<div id="powerUpHUD" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+     z-index:10;text-align:center;pointer-events:none;display:none;">
+    <div id="powerUpLabel" style="font-size:0.65rem;letter-spacing:3px;margin-bottom:4px;"></div>
+    <div style="width:160px;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
+        <div id="powerUpBar" style="height:100%;width:100%;border-radius:3px;transition:width 0.1s linear;"></div>
+    </div>
 </div>
 
 <!-- ── COMBO DISPLAY ─────────────────────────────── -->
@@ -193,6 +261,42 @@ let jumpsUsed = 0;     // 0 = can jump, 1 = used first jump, 2 = double-jump spe
 let jumpConsumed = false;
 let comboCount = 0, comboTimer = 0;   // gem combo streak
 let highScore = +localStorage.getItem('neonRunnerHS') || 0;
+let shakeTimer = 0;
+const SHAKE_DUR = 0.45;
+const SHAKE_MAG = 0.4;
+
+// ── Rank milestones ───────────────────────────────────────────
+const RANKS = [
+    { score:      0, name:'ROOKIE',   color:'#aaaaaa' },
+    { score:   1000, name:'RACER',    color:'#00ffff' },
+    { score:   5000, name:'PRO',      color:'#00ff88' },
+    { score:  15000, name:'ELITE',    color:'#ff00ff' },
+    { score:  40000, name:'LEGEND',   color:'#ffff00' },
+    { score: 100000, name:'NEON GOD', color:'#ff6600' },
+];
+let currentRankIdx = 0;
+
+// ── Ball Skins ────────────────────────────────────────────────
+const SKINS = [
+    { name:'CYBER',   color:0x00ffff, emissive:0x003344, emissiveI:0.8,  metalness:0.9, roughness:0.05, trail:0x00ffff },
+    { name:'FIRE',    color:0xff4400, emissive:0x661100, emissiveI:0.9,  metalness:0.4, roughness:0.3,  trail:0xff6600 },
+    { name:'GALAXY',  color:0xaa44ff, emissive:0x220066, emissiveI:0.7,  metalness:0.8, roughness:0.1,  trail:0xcc88ff },
+    { name:'GHOST',   color:0xffffff, emissive:0x224466, emissiveI:0.4,  metalness:0.0, roughness:0.0,  trail:0xaaccff },
+    { name:'GOLD',    color:0xffcc00, emissive:0x443300, emissiveI:0.6,  metalness:1.0, roughness:0.05, trail:0xffee44 },
+];
+let selectedSkin = 0;
+
+// ── Power-ups ─────────────────────────────────────────────────
+const POWERUP_TYPES = {
+    SHIELD:  { color:0x4488ff, label:'🛡 SHIELD',   dur:0 },      // absorbs 1 hit (no timer)
+    MAGNET:  { color:0xffff00, label:'🧲 MAGNET',   dur:6 },
+    SLOWMO:  { color:0xcc44ff, label:'⏱ SLOW-MO',  dur:5 },
+    GHOST:   { color:0xaaffee, label:'👻 GHOST',    dur:4 },
+};
+let powerUps = [];          // spawned power-up objects in scene
+let activePowerUp = null;   // currently active power-up type string
+let powerUpTimer  = 0;      // seconds remaining
+let shieldActive  = false;  // shield is consumed on hit (not time-based)
 
 // =============================================================
 //  SOUND EFFECTS  –  Pure Web Audio API, no files needed
@@ -357,6 +461,69 @@ function stopMusic() {
     if (_musicTid) { clearTimeout(_musicTid); _musicTid = null; }
 }
 
+// =============================================================
+//  LEADERBOARD
+// =============================================================
+function getLeaderboard() {
+    try { return JSON.parse(localStorage.getItem('neonRunnerLB') || '[]'); } catch { return []; }
+}
+function saveLeaderboard(lb) {
+    localStorage.setItem('neonRunnerLB', JSON.stringify(lb));
+}
+function isTopFive(s) {
+    const lb = getLeaderboard();
+    return lb.length < 5 || s > lb[lb.length - 1].score;
+}
+function addToLeaderboard(initials, s) {
+    const lb = getLeaderboard();
+    lb.push({ name: initials.toUpperCase() || '???', score: s });
+    lb.sort((a,b) => b.score - a.score);
+    lb.splice(5);
+    saveLeaderboard(lb);
+}
+function renderLeaderboard() {
+    const lb = getLeaderboard();
+    const el = document.getElementById('leaderboardList');
+    if (!el) return;
+    if (lb.length === 0) {
+        el.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:0.7rem;text-align:center;padding:8px;">No scores yet</div>';
+        return;
+    }
+    const medals = ['🥇','🥈','🥉','④','⑤'];
+    el.innerHTML = lb.map((e,i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+            <span style="color:rgba(255,255,255,0.5);font-size:0.75rem;">${medals[i]}&nbsp;${e.name}</span>
+            <span style="color:#00ffff;font-size:0.8rem;font-weight:900;">${e.score.toLocaleString()}</span>
+        </div>`).join('');
+}
+
+// =============================================================
+//  SKIN PICKER UI
+// =============================================================
+function buildSkinPicker() {
+    const container = document.getElementById('skinPicker');
+    if (!container) return;
+    container.innerHTML = '';
+    SKINS.forEach((skin, i) => {
+        const btn = document.createElement('div');
+        const hex = '#' + skin.color.toString(16).padStart(6,'0');
+        btn.style.cssText = `
+            width:42px; height:42px; border-radius:50%; cursor:pointer;
+            background:radial-gradient(circle at 35% 35%, ${hex}, #000);
+            border: 2px solid ${i===selectedSkin ? hex : 'rgba(255,255,255,0.15)'};
+            box-shadow: ${i===selectedSkin ? `0 0 14px ${hex}, 0 0 28px ${hex}` : 'none'};
+            transition: all 0.15s;
+        `;
+        btn.title = skin.name;
+        btn.addEventListener('click', () => {
+            selectedSkin = i;
+            buildSkinPicker();   // re-render to update selection ring
+        });
+        container.appendChild(btn);
+    });
+}
+
 // ── Physics / Tuning ─────────────────────────────────────────
 const GRAVITY       = -38;
 const JUMP_FORCE    = 19;
@@ -425,10 +592,7 @@ function init() {
     // ── Ball ─────────────────────────────────────────────────
     ball = new THREE.Mesh(
         new THREE.SphereGeometry(BALL_R, 32, 32),
-        new THREE.MeshStandardMaterial({
-            color: 0x00ffff, metalness: 0.9, roughness: 0.05,
-            emissive: 0x003344, emissiveIntensity: 0.8
-        })
+        new THREE.MeshStandardMaterial({ color:0x00ffff, metalness:0.9, roughness:0.05, emissive:0x003344, emissiveIntensity:0.8 })
     );
     ball.castShadow = true;
     ball.position.set(0, 3, 0);
@@ -449,7 +613,31 @@ function init() {
 
     document.getElementById('startBtn').addEventListener('click', startGame);
     document.getElementById('restartBtn').addEventListener('click', restartGame);
+    document.getElementById('saveInitialsBtn').addEventListener('click', saveInitials);
+    document.getElementById('initialsInput').addEventListener('keydown', e => { if (e.key==='Enter') saveInitials(); });
 
+    // ── Touch controls ────────────────────────────────────────
+    const tc = document.getElementById('touchControls');
+    // Show on touch devices OR always (players can also click on desktop)
+    tc.style.display = 'flex';
+
+    function bindBtn(id, keyCode) {
+        const btn = document.getElementById(id);
+        const on  = e => { e.preventDefault(); keys[keyCode] = true;  };
+        const off = e => { e.preventDefault(); keys[keyCode] = false; };
+        btn.addEventListener('touchstart', on,  { passive:false });
+        btn.addEventListener('touchend',   off, { passive:false });
+        btn.addEventListener('touchcancel',off, { passive:false });
+        btn.addEventListener('mousedown',  on);
+        btn.addEventListener('mouseup',    off);
+        btn.addEventListener('mouseleave', off);
+    }
+    bindBtn('touchLeft',  'KeyA');
+    bindBtn('touchRight', 'KeyD');
+    bindBtn('touchJump',  'Space');
+
+    buildSkinPicker();
+    renderLeaderboard();
     refreshHighScoreUI();
     animate();
 }
@@ -508,6 +696,9 @@ function generateChunk() {
 
     // Random bonus collectible
     if (Math.random() > 0.55) addCollectible((Math.random()-0.5)*5, 2.8, z-2);
+
+    // Power-up (rare, ~12% chance, not in first 5 chunks)
+    if (chunkCount > 5 && Math.random() > 0.88) addPowerUp((Math.random()-0.5)*4, 3.2, z-3);
 
     lastChunkZ = z;
     chunkCount++;
@@ -581,6 +772,36 @@ function addCollectible(x, y, z) {
     collectibles.push({ mesh, baseY: y, collected: false, col });
 }
 
+function addPowerUp(x, y, z) {
+    const keys = Object.keys(POWERUP_TYPES);
+    const type = keys[Math.floor(Math.random() * keys.length)];
+    const cfg  = POWERUP_TYPES[type];
+    // Distinct shape per type
+    const geoMap = {
+        SHIELD: new THREE.IcosahedronGeometry(0.6, 0),
+        MAGNET: new THREE.TorusGeometry(0.45, 0.18, 8, 16),
+        SLOWMO: new THREE.OctahedronGeometry(0.6, 0),
+        GHOST:  new THREE.DodecahedronGeometry(0.55, 0),
+    };
+    const mat  = new THREE.MeshStandardMaterial({
+        color:cfg.color, emissive:cfg.color, emissiveIntensity:1.1, metalness:0.7, roughness:0.1
+    });
+    const mesh = new THREE.Mesh(geoMap[type], mat);
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    powerUps.push({ mesh, type, baseY:y, collected:false });
+}
+
+function applySkin() {
+    const s = SKINS[selectedSkin];
+    ball.material.color.setHex(s.color);
+    ball.material.emissive.setHex(s.emissive);
+    ball.material.emissiveIntensity = s.emissiveI;
+    ball.material.metalness  = s.metalness;
+    ball.material.roughness  = s.roughness;
+    ball.material.needsUpdate = true;
+}
+
 // =============================================================
 //  PARTICLE SYSTEM
 // =============================================================
@@ -607,9 +828,10 @@ function burstParticles(pos, col, n=18) {
 }
 
 function trailParticle() {
+    const trailCol = SKINS[selectedSkin].trail;
     const m = new THREE.Mesh(
         new THREE.SphereGeometry(0.12, 4, 4),
-        new THREE.MeshBasicMaterial({ color:0x00ffff, transparent:true, opacity:0.8 })
+        new THREE.MeshBasicMaterial({ color:trailCol, transparent:true, opacity:0.8 })
     );
     m.position.copy(ball.position);
     m.position.x += (Math.random()-0.5)*0.2;
@@ -663,6 +885,12 @@ function cleanup() {
             collectibles.splice(i, 1);
         }
     }
+    for (let i = powerUps.length-1; i >= 0; i--) {
+        if (powerUps[i].mesh.position.z > cutoff) {
+            scene.remove(powerUps[i].mesh);
+            powerUps.splice(i, 1);
+        }
+    }
 }
 
 // =============================================================
@@ -681,7 +909,7 @@ function update(dt) {
         flashSpeed();
     }
 
-    const fwdSpeed = BASE_SPEED * speedMult;
+    const fwdSpeed = BASE_SPEED * speedMult * (activePowerUp === 'SLOWMO' ? 0.45 : 1);
 
     // ── Input ───────────────────────────────────────────────
     if (keys['KeyA'] || keys['ArrowLeft'])  ballVel.x -= STRAFE_ACCEL * dt;
@@ -751,7 +979,7 @@ function update(dt) {
     }
 
     // ── Obstacle collision ──────────────────────────────────
-    if (invTimer <= 0) {
+    if (invTimer <= 0 && activePowerUp !== 'GHOST') {
         for (const o of obstacles) {
             if (o.type === 'moving') {
                 o.mesh.position.x += o.dir * o.speed * dt;
@@ -781,6 +1009,15 @@ function update(dt) {
         if (c.collected) continue;
         c.mesh.rotation.y += dt * 3;
         c.mesh.position.y  = c.baseY + Math.sin(t * 3.5 + c.mesh.position.x) * 0.28;
+        // Magnet pulls gems toward ball
+        if (activePowerUp === 'MAGNET') {
+            const d = ball.position.distanceTo(c.mesh.position);
+            if (d < 6) {
+                const pull = ball.position.clone().sub(c.mesh.position).normalize().multiplyScalar(dt * 12);
+                c.mesh.position.add(pull);
+                c.baseY = c.mesh.position.y;
+            }
+        }
         if (ball.position.distanceTo(c.mesh.position) < 1.2) {
             c.collected = true;
             c.mesh.visible = false;
@@ -795,6 +1032,27 @@ function update(dt) {
         }
     }
 
+    // ── Power-ups: animate + collect ────────────────────────
+    for (const pu of powerUps) {
+        if (pu.collected) continue;
+        pu.mesh.rotation.y += dt * 2.5;
+        pu.mesh.rotation.x += dt * 1.2;
+        pu.mesh.position.y = pu.baseY + Math.sin(t * 2.8 + pu.mesh.position.x) * 0.35;
+        if (ball.position.distanceTo(pu.mesh.position) < 1.4) {
+            pu.collected = true;
+            pu.mesh.visible = false;
+            activatePowerUp(pu.type);
+        }
+    }
+
+    // ── Active power-up tick ────────────────────────────────
+    if (activePowerUp && POWERUP_TYPES[activePowerUp].dur > 0) {
+        powerUpTimer -= dt;
+        const pct = (powerUpTimer / POWERUP_TYPES[activePowerUp].dur * 100).toFixed(1);
+        document.getElementById('powerUpBar').style.width = Math.max(0,pct) + '%';
+        if (powerUpTimer <= 0) deactivatePowerUp();
+    }
+
     // ── Combo timer ─────────────────────────────────────────
     if (comboTimer > 0) {
         comboTimer -= dt;
@@ -805,6 +1063,7 @@ function update(dt) {
     _scoreAccum += dt * speedMult * 12;   // ~12 pts/sec at ×1 speed
     score = Math.floor(_scoreAccum) + _bonusScore;
     refreshScoreUI();
+    checkRankUp();
 
     // ── Fall ────────────────────────────────────────────────
     if (ball.position.y < -6) hitObstacle();
@@ -831,17 +1090,69 @@ function update(dt) {
     camera.position.x += (camTX - camera.position.x) * 0.07;
     camera.position.y += (camTY - camera.position.y) * 0.06;
     camera.position.z += (camTZ - camera.position.z) * 0.10;
+
+    // Camera shake
+    if (shakeTimer > 0) {
+        shakeTimer -= dt;
+        const mag = (shakeTimer / SHAKE_DUR) * SHAKE_MAG;
+        camera.position.x += (Math.random() - 0.5) * mag * 2;
+        camera.position.y += (Math.random() - 0.5) * mag;
+    }
+
     camera.lookAt(ball.position.x * 0.1, ball.position.y + 0.5, ball.position.z - 6);
 }
 
 // =============================================================
 //  GAME STATE
 // =============================================================
+function activatePowerUp(type) {
+    const cfg = POWERUP_TYPES[type];
+    activePowerUp = type;
+    burstParticles(ball.position.clone(), cfg.color, 20);
+    _tone(600, 'sine', 0.3, 0.25); _tone(800, 'sine', 0.2, 0.2, 0.15);
+
+    if (type === 'SHIELD') {
+        shieldActive = true;
+        // Shield visual: cyan ring around ball
+        document.getElementById('powerUpHUD').style.display = 'block';
+        document.getElementById('powerUpLabel').textContent = cfg.label;
+        document.getElementById('powerUpLabel').style.color = '#4488ff';
+        document.getElementById('powerUpBar').style.background = '#4488ff';
+        document.getElementById('powerUpBar').style.width = '100%';
+        return; // no timer
+    }
+
+    powerUpTimer = cfg.dur;
+    document.getElementById('powerUpHUD').style.display = 'block';
+    document.getElementById('powerUpLabel').textContent = cfg.label;
+    document.getElementById('powerUpLabel').style.color = '#' + cfg.color.toString(16).padStart(6,'0');
+    document.getElementById('powerUpBar').style.background = '#' + cfg.color.toString(16).padStart(6,'0');
+    document.getElementById('powerUpBar').style.width = '100%';
+}
+
+function deactivatePowerUp() {
+    activePowerUp = null;
+    powerUpTimer  = 0;
+    shieldActive  = false;
+    document.getElementById('powerUpHUD').style.display = 'none';
+}
+
 function hitObstacle() {
     if (invTimer > 0) return;
+
+    // Shield absorbs one hit
+    if (shieldActive) {
+        shieldActive = false;
+        deactivatePowerUp();
+        invTimer = 1.0;
+        burstParticles(ball.position.clone(), 0x4488ff, 16);
+        _tone(300, 'sine', 0.3, 0.3);
+        return;
+    }
     lives--;
     invTimer = 2.2;
     jumpsUsed = 0;
+    shakeTimer = SHAKE_DUR;
     burstParticles(ball.position.clone(), 0xff0044, 22);
     sfx.hit();
     refreshLivesUI();
@@ -851,8 +1162,16 @@ function hitObstacle() {
 
 function startGame() {
     gameStarted = true;
+    applySkin();
     document.getElementById('startScreen').classList.add('hidden');
     startMusic();
+}
+
+function saveInitials() {
+    const val = document.getElementById('initialsInput').value.trim() || '???';
+    addToLeaderboard(val, score);
+    document.getElementById('initialsBox').style.display = 'none';
+    renderLeaderboard();
 }
 
 function endGame() {
@@ -861,20 +1180,31 @@ function endGame() {
     sfx.gameOver();
     const newBest = score > highScore;
     if (newBest) { highScore = score; localStorage.setItem('neonRunnerHS', highScore); }
-    document.getElementById('finalScore').textContent    = score;
+    document.getElementById('finalScore').textContent     = score;
     document.getElementById('finalHighScore').textContent = highScore;
-    document.getElementById('newBestMsg').style.display  = newBest ? 'block' : 'none';
+    document.getElementById('newBestMsg').style.display   = newBest ? 'block' : 'none';
+
+    // Show initials entry if score qualifies for top 5
+    const qualifies = isTopFive(score);
+    const initialsBox = document.getElementById('initialsBox');
+    initialsBox.style.display = qualifies ? 'block' : 'none';
+    if (qualifies) {
+        document.getElementById('initialsInput').value = '';
+        setTimeout(() => document.getElementById('initialsInput').focus(), 100);
+    }
+
+    renderLeaderboard();
     document.getElementById('gameOverScreen').style.display = 'flex';
 }
 
 function restartGame() {
     // Clear scene objects
-    [...platforms, ...obstacles, ...collectibles, ...particles].forEach(obj => {
+    [...platforms, ...obstacles, ...collectibles, ...particles, ...powerUps].forEach(obj => {
         const m = obj.mesh || obj.m;
         scene.remove(m);
         if (obj.edgeMesh) scene.remove(obj.edgeMesh);
     });
-    platforms = []; obstacles = []; collectibles = []; particles = [];
+    platforms = []; obstacles = []; collectibles = []; particles = []; powerUps = [];
 
     // Reset state
     score = 0; lives = 3; _scoreAccum = 0; _bonusScore = 0;
@@ -883,8 +1213,14 @@ function restartGame() {
     invTimer = 0; jumpConsumed = false; jumpsUsed = 0;
     comboCount = 0; comboTimer = 0;
     chunkCount = 0; lastChunkZ = 10;
-    trailTimer = 0;
+    trailTimer = 0; shakeTimer = 0;
+    currentRankIdx = 0;
+    const badge = document.getElementById('rankBadge');
+    badge.textContent = 'ROOKIE'; badge.style.color = '#aaaaaa'; badge.style.textShadow = '';
+    powerUps = []; activePowerUp = null; powerUpTimer = 0; shieldActive = false;
+    document.getElementById('powerUpHUD').style.display = 'none';
     refreshComboUI();
+    applySkin();
     stopMusic(); startMusic();
 
     ball.position.set(0, 3, 0);
@@ -915,6 +1251,37 @@ function refreshSpeedUI() {
     const pct = ((speedMult - 1) / MAX_SPEED_X * 100).toFixed(1);
     document.getElementById('speedBar').style.width = pct + '%';
 }
+function checkRankUp() {
+    let newIdx = 0;
+    for (let i = 0; i < RANKS.length; i++) {
+        if (score >= RANKS[i].score) newIdx = i;
+    }
+    if (newIdx > currentRankIdx) {
+        currentRankIdx = newIdx;
+        const rank = RANKS[newIdx];
+        // Update badge
+        const badge = document.getElementById('rankBadge');
+        badge.textContent = rank.name;
+        badge.style.color = rank.color;
+        badge.style.textShadow = `0 0 8px ${rank.color}`;
+        // Show popup
+        const pop = document.getElementById('rankPopup');
+        const nm  = document.getElementById('rankPopupName');
+        nm.textContent = rank.name;
+        nm.style.color = rank.color;
+        nm.style.textShadow = `0 0 16px ${rank.color}, 0 0 40px ${rank.color}`;
+        pop.style.transition = 'opacity 0.15s, transform 0.15s';
+        pop.style.opacity = '1';
+        pop.style.transform = 'translateX(-50%) scale(1.15)';
+        _sweep(400, 900, 'sine', 0.4, 0.2);
+        setTimeout(() => {
+            pop.style.transition = 'opacity 0.6s, transform 0.6s';
+            pop.style.opacity = '0';
+            pop.style.transform = 'translateX(-50%) scale(1)';
+        }, 1800);
+    }
+}
+
 function refreshAllUI() {
     refreshScoreUI();
     refreshHighScoreUI();

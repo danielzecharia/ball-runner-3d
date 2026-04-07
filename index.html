@@ -146,18 +146,22 @@
         /* ── Game Over screen ───────────────────── */
         #gameOverScreen {
             position: fixed; inset: 0; z-index: 20;
-            background: rgba(0,0,8,0.92); overflow-y: auto;
+            background: rgba(0,0,8,0.92); overflow: hidden;
             animation: goFadeIn 0.4s ease both;
+            display: flex; align-items: center; justify-content: center;
         }
         .go-inner {
             position: relative; z-index: 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            min-height: 100%; padding: clamp(16px,4vw,28px); text-align: center;
-            gap: 0;
+            width: 100%; max-width: 480px;
+            height: 100vh; max-height: 100vh;
+            padding: clamp(6px, 2vh, 20px) clamp(16px, 4vw, 28px);
+            text-align: center; gap: 0;
+            box-sizing: border-box;
         }
-        #finalScore { font-size: clamp(3rem, 12vw, 5.5rem); }
-        #goRankBadge { font-size: clamp(1rem, 4vw, 1.5rem); }
-        .go-game-over-title { font-size: clamp(2rem, 8vw, 4rem); }
+        #finalScore { font-size: clamp(2rem, 8vw, 4.5rem); }
+        #goRankBadge { font-size: clamp(0.85rem, 3.5vw, 1.3rem); }
+        .go-game-over-title { font-size: clamp(1.6rem, 6vw, 3.2rem); }
 
         /* ── Nickname box ───────────────────────── */
         .go-nick-box {
@@ -364,7 +368,7 @@
 </div>
 
 <!-- ── GAME OVER SCREEN ─────────────────────────── -->
-<div id="gameOverScreen" class="fixed inset-0 z-20" style="display:none; background:rgba(0,0,8,0.92); animation:goFadeIn 0.4s ease both; overflow-y:auto;">
+<div id="gameOverScreen" class="fixed inset-0 z-20" style="display:none; background:rgba(0,0,8,0.92); animation:goFadeIn 0.4s ease both;">
 
     <!-- 2D ambient particles (canvas) -->
     <canvas id="goCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;"></canvas>
@@ -372,7 +376,7 @@
     <div class="go-inner">
 
         <!-- Title -->
-        <div class="go-title" style="margin-bottom:10px;">
+        <div class="go-title" style="margin-bottom:clamp(4px,1vh,10px);">
             <div class="go-game-over-title" style="color:#ff0044;font-weight:900;letter-spacing:clamp(4px,1.5vw,8px);
                  text-shadow:0 0 20px #ff0044,0 0 50px #ff0044,0 0 100px #ff0044;line-height:1;">
                 GAME OVER
@@ -380,48 +384,48 @@
         </div>
 
         <!-- NEW BEST badge -->
-        <div id="newBestMsg" class="new-best-badge" style="display:none;margin-bottom:10px;">
+        <div id="newBestMsg" class="new-best-badge" style="display:none;margin-bottom:clamp(4px,1vh,10px);">
             <div style="background:linear-gradient(90deg,#ff00ff,#ffff00,#ff00ff);background-size:200%;
                  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
-                 font-size:1.1rem;font-weight:900;letter-spacing:4px;padding:4px 0;">
+                 font-size:clamp(0.8rem,3vw,1.1rem);font-weight:900;letter-spacing:4px;padding:2px 0;">
                 ★ NEW HIGH SCORE ★
             </div>
         </div>
 
         <!-- Glowing divider -->
-        <div class="go-divider" style="width:300px;height:1px;background:linear-gradient(90deg,transparent,#00ffff,transparent);margin:10px auto 18px;"></div>
+        <div class="go-divider" style="width:min(300px,80%);height:1px;background:linear-gradient(90deg,transparent,#00ffff,transparent);margin:clamp(4px,1vh,10px) auto;"></div>
 
         <!-- Score block -->
         <div class="go-score">
-            <div style="color:rgba(0,255,255,0.65);font-size:0.78rem;letter-spacing:5px;margin-bottom:6px;
+            <div style="color:rgba(0,255,255,0.65);font-size:clamp(0.6rem,2vw,0.78rem);letter-spacing:5px;margin-bottom:clamp(2px,0.5vh,6px);
                         text-shadow:0 0 8px rgba(0,255,255,0.4);">YOUR SCORE</div>
-            <div style="color:#ffffff;font-size:5.5rem;font-weight:900;letter-spacing:4px;line-height:1;
+            <div style="color:#ffffff;font-weight:900;letter-spacing:4px;line-height:1;
                  text-shadow:0 0 20px #00ffff,0 0 60px #00ffff,0 0 120px rgba(0,255,255,0.4);" id="finalScore">0</div>
-            <div id="goRankBadge" style="font-size:1.5rem;font-weight:900;letter-spacing:6px;margin-top:10px;
+            <div id="goRankBadge" style="font-weight:900;letter-spacing:6px;margin-top:clamp(4px,1vh,10px);
                                          text-shadow:0 0 16px currentColor;">ROOKIE</div>
-            <div style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin-top:8px;letter-spacing:2px;">
+            <div style="color:rgba(255,255,255,0.38);font-size:clamp(0.6rem,2vw,0.78rem);margin-top:clamp(2px,0.5vh,8px);letter-spacing:2px;">
                 ALL-TIME BEST&nbsp;<span id="finalHighScore" style="color:rgba(255,255,255,0.65);font-weight:900;">0</span>
             </div>
         </div>
 
         <!-- Glowing divider -->
-        <div class="go-divider" style="width:300px;height:1px;background:linear-gradient(90deg,transparent,#cc44ff,transparent);margin:20px auto 22px;"></div>
+        <div class="go-divider" style="width:min(300px,80%);height:1px;background:linear-gradient(90deg,transparent,#cc44ff,transparent);margin:clamp(6px,1.5vh,16px) auto;"></div>
 
         <!-- Nickname entry (grouped in purple-tinted box) -->
-        <div id="initialsBox" class="go-nick-box" style="display:none;margin-bottom:22px;width:100%;max-width:380px;">
-            <div style="color:#cc88ff;font-size:0.85rem;letter-spacing:3px;margin-bottom:12px;
+        <div id="initialsBox" class="go-nick-box" style="display:none;margin-bottom:clamp(8px,1.5vh,16px);width:100%;max-width:380px;">
+            <div style="color:#cc88ff;font-size:clamp(0.65rem,2.5vw,0.85rem);letter-spacing:3px;margin-bottom:clamp(6px,1vh,12px);
                         text-shadow:0 0 10px rgba(180,0,255,0.7);">
                 ✦ ENTER YOUR NICKNAME TO SAVE YOUR RECORD ✦
             </div>
             <input id="initialsInput" maxlength="20" placeholder="YOUR NICKNAME"
                 style="background:rgba(140,0,255,0.08);border:2px solid rgba(180,0,255,0.55);color:#cc44ff;
-                       font-family:'Courier New',monospace;font-size:1.4rem;font-weight:900;
+                       font-family:'Courier New',monospace;font-size:clamp(1rem,4vw,1.4rem);font-weight:900;
                        text-align:center;width:100%;letter-spacing:3px;outline:none;
-                       text-transform:uppercase;border-radius:6px;padding:8px 10px;
-                       box-shadow:0 0 14px rgba(180,0,255,0.3);transition:border-color 0.2s,box-shadow 0.2s;">
-            <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;">
+                       text-transform:uppercase;border-radius:6px;padding:clamp(5px,1vh,8px) 10px;
+                       box-shadow:0 0 14px rgba(180,0,255,0.3);transition:border-color 0.2s,box-shadow 0.2s;box-sizing:border-box;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:clamp(6px,1vh,14px);">
                 <button class="neon-btn neon-btn-magenta" id="saveInitialsBtn"
-                    style="font-size:0.95rem;padding:11px 28px;letter-spacing:3px;">
+                    style="font-size:clamp(0.8rem,2.5vw,0.95rem);padding:clamp(7px,1.2vh,11px) 28px;letter-spacing:3px;">
                     💾 SUBMIT SCORE
                 </button>
                 <div id="savedConfirm" style="display:none;animation:savedPop 0.4s ease both;">
@@ -432,28 +436,28 @@
         </div>
 
         <!-- Primary actions -->
-        <div class="go-actions" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:20px;">
-            <button class="neon-btn neon-btn-primary" id="restartBtn" style="font-size:1.25rem;padding:16px 52px;letter-spacing:5px;width:100%;max-width:320px;">
+        <div class="go-actions" style="display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1.2vh,10px);margin-bottom:clamp(8px,1.5vh,16px);width:100%;">
+            <button class="neon-btn neon-btn-primary" id="restartBtn" style="font-size:clamp(1rem,4vw,1.25rem);padding:clamp(10px,2vh,16px) clamp(28px,8vw,52px);letter-spacing:5px;width:100%;max-width:320px;">
                 ▶ PLAY AGAIN
             </button>
-            <button class="neon-btn neon-btn-ghost" id="mainMenuBtn" style="width:100%;max-width:320px;">
+            <button class="neon-btn neon-btn-ghost" id="mainMenuBtn" style="width:100%;max-width:320px;padding:clamp(8px,1.5vh,12px) 24px;">
                 MAIN MENU
             </button>
         </div>
 
         <!-- Share section -->
         <div class="go-share">
-            <div style="color:rgba(255,255,255,0.55);font-size:0.82rem;letter-spacing:4px;margin-bottom:12px;
+            <div style="color:rgba(255,255,255,0.55);font-size:clamp(0.65rem,2vw,0.82rem);letter-spacing:4px;margin-bottom:clamp(6px,1vh,12px);
                         text-shadow:0 0 8px rgba(255,255,255,0.2);">— SHARE YOUR SCORE —</div>
-            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                <button class="neon-btn neon-btn-share" id="shareImageBtn">📸 SHARE AS IMAGE</button>
-                <button class="neon-btn neon-btn-share" id="shareCopyBtn">📋 COPY SCORE</button>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button class="neon-btn neon-btn-share" id="shareImageBtn" style="font-size:clamp(0.7rem,2.5vw,0.85rem);padding:clamp(6px,1vh,10px) clamp(12px,3vw,20px);">📸 SHARE AS IMAGE</button>
+                <button class="neon-btn neon-btn-share" id="shareCopyBtn" style="font-size:clamp(0.7rem,2.5vw,0.85rem);padding:clamp(6px,1vh,10px) clamp(12px,3vw,20px);">📋 COPY SCORE</button>
             </div>
-            <div style="color:rgba(255,100,255,0.85);font-size:0.8rem;letter-spacing:2px;margin-top:12px;font-style:italic;
+            <div style="color:rgba(255,100,255,0.85);font-size:clamp(0.65rem,2vw,0.8rem);letter-spacing:2px;margin-top:clamp(6px,1vh,12px);font-style:italic;
                         text-shadow:0 0 8px rgba(255,0,255,0.4);">
                 "Can you beat my score? ⚡"
             </div>
-            <div id="copiedMsg" style="color:#00ff88;font-size:0.75rem;letter-spacing:2px;margin-top:8px;opacity:0;transition:opacity 0.3s;">✓ COPIED TO CLIPBOARD</div>
+            <div id="copiedMsg" style="color:#00ff88;font-size:0.75rem;letter-spacing:2px;margin-top:6px;opacity:0;transition:opacity 0.3s;">✓ COPIED TO CLIPBOARD</div>
         </div>
 
     </div>
@@ -2356,7 +2360,7 @@ function endGame() {
     renderLeaderboard();
     const goScreen = document.getElementById('gameOverScreen');
     goScreen.style.display = 'flex';
-    goScreen.style.flexDirection = 'column';
+    goScreen.style.flexDirection = '';
     goScreen.style.animation = 'none';
     requestAnimationFrame(() => { goScreen.style.animation = 'goFadeIn 0.4s ease both'; });
     startGoParticles();

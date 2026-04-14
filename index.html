@@ -61,6 +61,26 @@
             letter-spacing: 2px; padding: 3px 8px; cursor: pointer; width: 100%;
             touch-action: manipulation;
         }
+        /* ── Mute button (always visible, fixed corner) ── */
+        #muteBtn {
+            position: fixed; bottom: clamp(10px,2.5vh,18px); right: clamp(10px,2.5vw,18px);
+            z-index: 50; pointer-events: all;
+            background: rgba(0,0,20,0.75); border: 1px solid rgba(0,255,255,0.35);
+            color: #00ffff; border-radius: 50%; width: clamp(36px,6vw,44px); height: clamp(36px,6vw,44px);
+            font-size: clamp(1rem,2.5vw,1.25rem); cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            box-shadow: 0 0 10px rgba(0,255,255,0.25); backdrop-filter: blur(4px);
+            transition: box-shadow 0.15s, border-color 0.15s, color 0.15s;
+            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+        }
+        #muteBtn:hover, #muteBtn:active {
+            box-shadow: 0 0 22px rgba(0,255,255,0.7);
+            border-color: rgba(0,255,255,0.8);
+        }
+        #muteBtn.muted {
+            color: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.18);
+            box-shadow: none;
+        }
         .speed-bar-track {
             width: clamp(70px, 12vw, 120px); height: 6px;
             background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;
@@ -492,6 +512,9 @@
 <!-- Legacy id kept for JS compatibility -->
 <div id="touchControls" style="display:none;"></div>
 
+<!-- ── MUTE BUTTON (always visible) ──────────────── -->
+<button id="muteBtn" title="Toggle audio">🔊</button>
+
 <!-- ── SPEED FLASH + POPUP ───────────────────────── -->
 <div id="speedFlash" style="position:fixed;inset:0;pointer-events:none;z-index:15;opacity:0;
      background:radial-gradient(ellipse at center, transparent 20%, rgba(255,0,255,0.45) 100%);
@@ -608,11 +631,14 @@ let shieldActive  = false;  // shield is consumed on hit (not time-based)
 //  SOUND EFFECTS  –  Pure Web Audio API, no files needed
 // =============================================================
 let _audioCtx = null;
+let _globalMuted = localStorage.getItem('neonRunnerMuted') === 'true';
+
 function _ac() {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     return _audioCtx;
 }
 function _tone(freq, type, dur, vol, delay = 0) {
+    if (_globalMuted) return;
     const ctx = _ac();
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -625,6 +651,7 @@ function _tone(freq, type, dur, vol, delay = 0) {
     osc.stop(ctx.currentTime + delay + dur + 0.02);
 }
 function _sweep(f0, f1, type, dur, vol, delay = 0) {
+    if (_globalMuted) return;
     const ctx = _ac();
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -638,6 +665,7 @@ function _sweep(f0, f1, type, dur, vol, delay = 0) {
     osc.stop(ctx.currentTime + delay + dur + 0.02);
 }
 function _noise(dur, vol) {
+    if (_globalMuted) return;
     const ctx  = _ac();
     const n    = Math.ceil(ctx.sampleRate * dur);
     const buf  = ctx.createBuffer(1, n, ctx.sampleRate);
@@ -649,6 +677,25 @@ function _noise(dur, vol) {
     src.connect(gain); gain.connect(ctx.destination);
     gain.gain.setValueAtTime(vol, ctx.currentTime);
     src.start(); src.stop(ctx.currentTime + dur + 0.02);
+}
+function _applyMuteUI() {
+    const btn = document.getElementById('muteBtn');
+    if (!btn) return;
+    btn.textContent = _globalMuted ? '🔇' : '🔊';
+    btn.classList.toggle('muted', _globalMuted);
+    btn.title = _globalMuted ? 'Unmute audio' : 'Mute audio';
+}
+function toggleMute() {
+    _globalMuted = !_globalMuted;
+    localStorage.setItem('neonRunnerMuted', _globalMuted);
+    if (_globalMuted) {
+        stopMusic();
+        if (_audioCtx) _audioCtx.suspend();
+    } else {
+        if (_audioCtx) _audioCtx.resume();
+        if (gameStarted && !gameOver && !gamePaused) startMusic();
+    }
+    _applyMuteUI();
 }
 const sfx = {
     jump()       { _sweep(280, 560, 'sine', 0.12, 0.22); },
@@ -757,7 +804,7 @@ function _musicTick() {
     _musicTid = setTimeout(_musicTick, 40);
 }
 function startMusic() {
-    if (_musicOn) return;
+    if (_musicOn || _globalMuted) return;
     _musicOn = true; _musicStep = 0;
     _musicNextT = _ac().currentTime + 0.1;
     _musicTick();
@@ -1099,6 +1146,8 @@ function init() {
     document.getElementById('shareImageBtn').addEventListener('click', () => { _btnClick(); downloadShareCard(); });
     document.getElementById('shareCopyBtn').addEventListener('click', () => { _btnClick(); shareScore(); });
     document.getElementById('saveInitialsBtn').addEventListener('click', saveInitials);
+    document.getElementById('muteBtn').addEventListener('click', toggleMute);
+    _applyMuteUI(); // reflect persisted state on load
     document.getElementById('initialsInput').addEventListener('keydown', e => { if (e.key==='Enter') saveInitials(); });
     document.getElementById('initialsInput').addEventListener('focus', () => {
         const inp = document.getElementById('initialsInput');

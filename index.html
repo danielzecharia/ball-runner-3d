@@ -1236,7 +1236,7 @@ function generateChunk() {
             addBlackHole(LANES[hlane], z - 3);
             [0,1,2].filter(l=>l!==hlane).forEach(l => { for(let i=0;i<2;i++) addCollectible(LANES[l],2.2,z-i*2); });
         } else if (pat === 1) {
-            addLaserGate(z - 2); addLaserGate(z - 6);
+            addLaserGate(z - 4);
         } else if (pat === 2) {
             const safe = Math.floor(Math.random()*3);
             [0,1,2].filter(l=>l!==safe).forEach(l => addObstacleSpike(LANES[l], z));
@@ -2302,10 +2302,7 @@ function shareScore() {
 }
 
 function startGame() {
-    gameStarted = true;
-    currentLane = 1; targetLaneX = LANES[1]; laneChangeCooldown = 0; _laneKeyConsumed = false;
-    updateLaneDots();
-    applySkin();
+    _resetGame();
     document.getElementById('startScreen').classList.add('hidden');
     startMusic();
 }
@@ -2366,7 +2363,8 @@ function endGame() {
     startGoParticles();
 }
 
-function restartGame() {
+// Shared full-reset used by both startGame() and restartGame()
+function _resetGame() {
     // Clear scene objects
     obstacles.forEach(o => {
         scene.remove(o.mesh);
@@ -2382,7 +2380,7 @@ function restartGame() {
     });
     platforms = []; obstacles = []; collectibles = []; particles = []; powerUps = [];
 
-    // Reset state
+    // Reset all run state
     score = 0; lives = 3; _scoreAccum = 0; _bonusScore = 0;
     gameOver = false; gameStarted = true;
     speedMult = 1.0; speedTimer = 0;
@@ -2393,7 +2391,7 @@ function restartGame() {
     currentRankIdx = 0;
     const badge = document.getElementById('rankBadge');
     badge.textContent = 'ROOKIE'; badge.style.color = '#aaaaaa'; badge.style.textShadow = '';
-    powerUps = []; activePowerUp = null; powerUpTimer = 0; shieldActive = false;
+    activePowerUp = null; powerUpTimer = 0; shieldActive = false;
     boostPads = []; gamePaused = false;
     ball.scale.set(1, 1, 1);
     currentLane = 1; targetLaneX = LANES[1]; laneChangeCooldown = 0; _laneKeyConsumed = false;
@@ -2401,9 +2399,10 @@ function restartGame() {
     document.getElementById('pauseScreen').style.display = 'none';
     document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
     document.getElementById('powerUpHUD').style.display = 'none';
+    document.getElementById('gameOverScreen').style.display = 'none';
     refreshComboUI();
     applySkin();
-    stopMusic(); startMusic();
+    stopMusic();
 
     ball.position.set(0, 3, 0);
     ballVel.set(0, 0, 0);
@@ -2412,8 +2411,12 @@ function restartGame() {
     for (let i = 0; i < 22; i++) generateChunk();
 
     stopGoParticles();
-    document.getElementById('gameOverScreen').style.display = 'none';
     refreshAllUI();
+}
+
+function restartGame() {
+    _resetGame();
+    startMusic();
 }
 
 // =============================================================
